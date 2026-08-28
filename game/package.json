@@ -1,0 +1,13 @@
+{
+  "name": "carpool-lane",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "solve": "node tools/solver.js",
+    "build": "node tools/build.js",
+    "pipeline": "node tools/pipeline.js",
+    "validate": "node tools/validate.js"
+  }
+}
