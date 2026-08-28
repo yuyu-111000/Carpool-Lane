@@ -5,85 +5,274 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>挪车！师傅 · Carpool Lane</title>
 <style>
-  :root { color-scheme: dark; }
+  :root {
+    color-scheme: dark;
+    --bg: #0B0C0A;
+    --panel: #15171B;
+    --board: #16181D;
+    --line: rgba(255,255,255,.14);
+    --amber: #FFB800;
+    --red: #E5484D;
+    --green: #00C853;
+    --text: #F5F2EA;
+    --dim: #8A8F98;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "JetBrains Mono", monospace;
+    --sans: -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  }
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; }
   body {
-    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-    background: #1a1d24; color: #ecf0f1;
+    font-family: var(--sans);
+    background: var(--bg); color: var(--text);
     display: flex; flex-direction: column; align-items: center;
     height: 100dvh; overflow: hidden;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
-  #hud {
-    width: 100%; max-width: 560px; display: none; align-items: center; gap: 10px;
-    padding: 10px 14px; font-size: 14px;
-  }
-  #hud .grow { flex: 1; min-width: 0; }
-  #level-name { font-weight: 700; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #quote { color: #95a5a6; font-size: 12px; margin-top: 2px; }
-  #stats { display: flex; gap: 12px; color: #bdc3c7; font-variant-numeric: tabular-nums; }
-  #pickup-hint { display: none; color: #f1c40f; font-size: 12px; margin-top: 2px; }
-  #game {
-    width: min(96vw, 560px, calc(100dvh - 150px));
-    aspect-ratio: 1 / 1;
-    border-radius: 14px; touch-action: none; cursor: pointer;
-    background: #14161c;
+  .lane {
+    height: 3px; width: 100%;
+    background: repeating-linear-gradient(90deg, var(--amber) 0 26px, transparent 26px 42px);
+    opacity: .85;
   }
   .btn {
-    background: #e74c3c; color: #fff; border: none; border-radius: 10px;
-    padding: 10px 16px; font-size: 15px; font-weight: 700; cursor: pointer;
+    font-family: var(--sans); font-size: 15px; font-weight: 800; letter-spacing: 1px;
+    background: transparent; color: var(--amber);
+    border: 1px solid var(--amber); border-radius: 2px;
+    padding: 10px 18px; cursor: pointer;
   }
-  .btn.sec { background: #3d4451; }
+  .btn:active { background: rgba(255,184,0,.15); }
+  .btn.primary { background: var(--amber); color: #0B0C0A; }
+  .btn.primary:active { background: #e6a600; }
+  .btn.sec { color: var(--dim); border-color: var(--line); }
+
+  /* ---------- HUD（两行网格：关卡名+按钮 / 语录+统计） ---------- */
+  #hud {
+    width: 100%; max-width: 600px; display: none;
+    grid-template-columns: 1fr auto; grid-template-areas: "name btns" "sub stats";
+    gap: 4px 10px; align-items: center;
+    padding: 10px 14px; font-size: 13px;
+  }
+  #level-name { grid-area: name; font-weight: 800; font-size: 16px; letter-spacing: .5px; }
+  .hud-btns { grid-area: btns; display: flex; gap: 8px; }
+  .hud-btns .btn { padding: 7px 12px; font-size: 13px; }
+  #sub { grid-area: sub; min-width: 0; }
+  #quote { color: var(--dim); font-size: 12px; }
+  #stats { grid-area: stats; display: flex; gap: 12px; color: var(--text); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  #stats b { color: var(--amber); }
+  #pickup-hint { display: none; color: var(--amber); font-size: 12px; }
+
+  /* ---------- 棋盘 ---------- */
+  #stage { position: relative; }
+  #game {
+    width: min(96vw, 600px, calc(100dvh - 190px));
+    aspect-ratio: 1 / 1;
+    border: 1px solid var(--line);
+    background: var(--board);
+    touch-action: none; cursor: pointer; display: block;
+  }
+  #hint {
+    position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
+    background: rgba(11,12,10,.92); border: 1px solid var(--amber); border-radius: 2px;
+    color: var(--amber); font-size: 13px; font-weight: 700; letter-spacing: 1px;
+    padding: 7px 14px; display: none; pointer-events: none; white-space: nowrap;
+  }
+  footer { color: #4a5058; font-size: 11px; font-family: var(--mono); padding: 6px; }
+
+  /* ---------- 遮罩层 ---------- */
   .overlay {
-    position: fixed; inset: 0; background: rgba(10,12,16,0.82);
-    display: none; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
-    text-align: center; padding: 24px;
+    position: fixed; inset: 0; background: var(--bg);
+    display: none; flex-direction: column; align-items: center;
+    overflow-y: auto; padding: 28px 20px 20px; gap: 20px; text-align: center;
   }
-  .overlay h1 { font-size: 34px; letter-spacing: 2px; }
-  .overlay h2 { font-size: 22px; }
-  .overlay p { color: #bdc3c7; }
-  #level-list { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 340px; }
+  .overlay.dim { background: rgba(11,12,10,.9); justify-content: center; }
+
+  /* 标题屏：路牌式刊头 */
+  .sign {
+    border: 2px solid var(--amber); border-radius: 4px;
+    padding: 18px 34px 16px; background: var(--panel);
+    box-shadow: 0 0 0 6px var(--bg), 0 0 0 7px var(--line);
+  }
+  .sign-top { font-family: var(--mono); color: var(--dim); font-size: 12px; letter-spacing: 4px; }
+  .sign h1 { font-size: 40px; font-weight: 900; letter-spacing: 6px; margin: 6px 0 10px; }
+  .sign .lane { width: 100%; }
+  .sign .tag { color: var(--dim); font-size: 13px; margin-top: 10px; letter-spacing: 2px; }
+
+  .howto { width: 100%; max-width: 560px; }
+  .howto h2, .road-title {
+    font-size: 14px; font-weight: 800; letter-spacing: 4px; color: var(--dim);
+    text-align: left; margin-bottom: 12px;
+  }
+  .howto-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  @media (max-width: 520px) { .howto-grid { grid-template-columns: 1fr; } }
+  .howto-item {
+    border: 1px solid var(--line); background: var(--panel);
+    padding: 10px 10px 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; text-align: left;
+  }
+  .howto-item svg { width: 100%; height: 64px; background: var(--board); }
+  .howto-item b { font-size: 14px; letter-spacing: 1px; }
+  .howto-item span { font-size: 12px; color: var(--dim); line-height: 1.5; }
+
+  /* 道路式关卡选择 */
+  .road { width: 100%; max-width: 420px; position: relative; padding: 4px 0 8px; }
+  .road::before {
+    content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 3px; transform: translateX(-50%);
+    background: repeating-linear-gradient(180deg, var(--amber) 0 14px, transparent 14px 26px);
+    opacity: .5;
+  }
   .level-btn {
-    width: 52px; height: 52px; border-radius: 12px; border: none;
-    background: #2f3640; color: #ecf0f1; font-size: 18px; font-weight: 700; cursor: pointer;
+    position: relative; display: flex; align-items: center; gap: 12px; width: 100%;
+    background: none; border: none; color: var(--text); cursor: pointer;
+    padding: 9px 0; font-family: var(--sans);
   }
-  .level-btn:active { background: #e74c3c; }
-  #win-stars { font-size: 44px; letter-spacing: 4px; }
-  #win-text { font-size: 18px; }
-  footer { color: #565f6e; font-size: 11px; padding: 6px; }
+  .level-btn .node {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 16px; height: 16px; background: var(--bg); border: 2px solid var(--amber); z-index: 1;
+  }
+  .level-btn .no { width: 44%; text-align: right; font-family: var(--mono); font-size: 15px; }
+  .level-btn .no b { font-size: 17px; }
+  .level-btn .nm { width: 44%; margin-left: auto; text-align: left; font-size: 13px; color: var(--dim); }
+  .level-btn .stars { font-size: 11px; color: var(--amber); letter-spacing: 1px; }
+  .level-btn:active .node { background: var(--amber); }
+
+  /* 胜利屏 */
+  #win-screen h2 { font-size: 26px; font-weight: 900; letter-spacing: 3px; }
+  #win-stars { font-size: 46px; letter-spacing: 6px; }
+  #win-text { font-size: 15px; color: var(--dim); }
+  #win-stats { font-family: var(--mono); font-size: 14px; color: var(--text); }
+  #win-stats b { color: var(--amber); }
+  .win-btns { display: flex; gap: 12px; }
 </style>
 </head>
 <body>
   <div id="hud">
-    <div class="grow">
-      <div id="level-name"></div>
+    <div id="level-name"></div>
+    <div class="hud-btns">
+      <button class="btn sec" id="btn-help">玩法</button>
+      <button class="btn sec" id="btn-restart">重开</button>
+      <button class="btn sec" id="btn-back">选关</button>
+    </div>
+    <div id="sub">
       <div id="quote"></div>
-      <div id="pickup-hint">💡 顺路捎上 🧍，道闸才会开</div>
+      <div id="pickup-hint">有乘客：先接人，道闸才开</div>
     </div>
     <div id="stats">
-      <span id="moves">0 步</span>
-      <span id="par"></span>
+      <span><b id="moves">0</b> 步</span>
+      <span>3★ <b id="par"></b> 步</span>
     </div>
-    <button class="btn sec" id="btn-restart">重开</button>
-    <button class="btn sec" id="btn-back">关卡</button>
   </div>
-  <canvas id="game"></canvas>
-  <footer>挪车！师傅 Carpool Lane · 原型 v0.1</footer>
+  <div id="stage">
+    <canvas id="game"></canvas>
+    <div id="hint"></div>
+  </div>
+  <footer>Carpool Lane · v0.2</footer>
 
   <div class="overlay" id="title-screen" style="display:flex">
-    <h1>🚕 挪车！师傅</h1>
-    <p>Carpool Lane · 顺路捎人，腾出活路</p>
-    <p style="font-size:13px;color:#95a5a6">横车横移 · 竖车竖移 · 把红车开出右出口</p>
-    <div id="level-list"></div>
+    <div class="sign">
+      <div class="sign-top">CARPOOL LANE</div>
+      <h1>挪车！师傅</h1>
+      <div class="lane"></div>
+      <p class="tag">顺路捎人 · 腾出活路</p>
+    </div>
+    <section class="howto">
+      <h2>怎么玩</h2>
+      
+  <div class="howto-grid">
+    <div class="howto-item">
+      <svg viewBox="0 0 120 64" aria-hidden="true">
+        <rect x="10" y="16" width="40" height="15" rx="3" fill="#4a90d9"/>
+        <path d="M56 23.5 H74 M74 23.5 l-6 -5 M74 23.5 l-6 5 M56 23.5 l6 -5 M56 23.5 l6 5" stroke="#FFB800" stroke-width="2.5" fill="none"/>
+        <rect x="88" y="8" width="15" height="40" rx="3" fill="#2ecc71"/>
+        <path d="M95.5 54 V60 M95.5 60 l-5 -6 M95.5 60 l5 -6 M95.5 8 V2 M95.5 2 l-5 6 M95.5 2 l5 6" stroke="#FFB800" stroke-width="2.5" fill="none"/>
+      </svg>
+      <b>拖动车辆</b>
+      <span>横车只能横移，竖车只能竖移</span>
+    </div>
+    <div class="howto-item">
+      <svg viewBox="0 0 120 64" aria-hidden="true">
+        <rect x="8" y="8" width="86" height="48" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
+        <rect x="94" y="26" width="18" height="12" fill="#1d2026"/>
+        <rect x="16" y="25" width="30" height="14" rx="3" fill="#e5484d"/>
+        <path d="M52 32 H86 M86 32 l-7 -6 M86 32 l-7 6" stroke="#FFB800" stroke-width="2.5" fill="none"/>
+        <text x="103" y="22" fill="#FFB800" font-size="10" text-anchor="middle">出口</text>
+      </svg>
+      <b>腾出活路</b>
+      <span>把红色师傅车开出右侧出口</span>
+    </div>
+    <div class="howto-item">
+      <svg viewBox="0 0 120 64" aria-hidden="true">
+        <rect x="14" y="26" width="30" height="14" rx="3" fill="#e5484d"/>
+        <circle cx="66" cy="24" r="5" fill="#FFB800"/>
+        <path d="M66 29 v12 M66 33 l-6 5 M66 33 l6 5" stroke="#FFB800" stroke-width="2.5" fill="none"/>
+        <path d="M46 33 h12" stroke="rgba(255,255,255,.5)" stroke-width="2" stroke-dasharray="4 3"/>
+        <rect x="92" y="10" width="6" height="44" fill="#e5484d"/>
+        <rect x="92" y="16" width="6" height="6" fill="#fff"/>
+        <rect x="92" y="30" width="6" height="6" fill="#fff"/>
+        <rect x="92" y="44" width="6" height="6" fill="#fff"/>
+      </svg>
+      <b>顺路捎人</b>
+      <span>有乘客的关卡：先开到乘客旁接人，道闸才会抬起</span>
+    </div>
+  </div>
+    </section>
+    <div class="lane" style="max-width:560px"></div>
+    <h2 class="road-title" style="max-width:420px;width:100%">选择关卡</h2>
+    <div id="level-list" class="road"></div>
+    <button class="btn primary" id="btn-start">开始游戏</button>
   </div>
 
-  <div class="overlay" id="win-screen">
+  <div class="overlay dim" id="help-screen">
+    <section class="howto" style="max-width:560px">
+      <h2>怎么玩</h2>
+      
+  <div class="howto-grid">
+    <div class="howto-item">
+      <svg viewBox="0 0 120 64" aria-hidden="true">
+        <rect x="10" y="16" width="40" height="15" rx="3" fill="#4a90d9"/>
+        <path d="M56 23.5 H74 M74 23.5 l-6 -5 M74 23.5 l-6 5 M56 23.5 l6 -5 M56 23.5 l6 5" stroke="#FFB800" stroke-width="2.5" fill="none"/>
+        <rect x="88" y="8" width="15" height="40" rx="3" fill="#2ecc71"/>
+        <path d="M95.5 54 V60 M95.5 60 l-5 -6 M95.5 60 l5 -6 M95.5 8 V2 M95.5 2 l-5 6 M95.5 2 l5 6" stroke="#FFB800" stroke-width="2.5" fill="none"/>
+      </svg>
+      <b>拖动车辆</b>
+      <span>横车只能横移，竖车只能竖移</span>
+    </div>
+    <div class="howto-item">
+      <svg viewBox="0 0 120 64" aria-hidden="true">
+        <rect x="8" y="8" width="86" height="48" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
+        <rect x="94" y="26" width="18" height="12" fill="#1d2026"/>
+        <rect x="16" y="25" width="30" height="14" rx="3" fill="#e5484d"/>
+        <path d="M52 32 H86 M86 32 l-7 -6 M86 32 l-7 6" stroke="#FFB800" stroke-width="2.5" fill="none"/>
+        <text x="103" y="22" fill="#FFB800" font-size="10" text-anchor="middle">出口</text>
+      </svg>
+      <b>腾出活路</b>
+      <span>把红色师傅车开出右侧出口</span>
+    </div>
+    <div class="howto-item">
+      <svg viewBox="0 0 120 64" aria-hidden="true">
+        <rect x="14" y="26" width="30" height="14" rx="3" fill="#e5484d"/>
+        <circle cx="66" cy="24" r="5" fill="#FFB800"/>
+        <path d="M66 29 v12 M66 33 l-6 5 M66 33 l6 5" stroke="#FFB800" stroke-width="2.5" fill="none"/>
+        <path d="M46 33 h12" stroke="rgba(255,255,255,.5)" stroke-width="2" stroke-dasharray="4 3"/>
+        <rect x="92" y="10" width="6" height="44" fill="#e5484d"/>
+        <rect x="92" y="16" width="6" height="6" fill="#fff"/>
+        <rect x="92" y="30" width="6" height="6" fill="#fff"/>
+        <rect x="92" y="44" width="6" height="6" fill="#fff"/>
+      </svg>
+      <b>顺路捎人</b>
+      <span>有乘客的关卡：先开到乘客旁接人，道闸才会抬起</span>
+    </div>
+  </div>
+    </section>
+    <button class="btn primary" id="btn-help-close">明白了</button>
+  </div>
+
+  <div class="overlay dim" id="win-screen">
     <h2>师傅，出去了！</h2>
     <div id="win-stars"></div>
+    <div id="win-stats"></div>
     <div id="win-text"></div>
-    <button class="btn" id="btn-next">下一关</button>
-    <button class="btn sec" id="btn-back2" onclick="document.getElementById('win-screen').style.display='none'">再看棋盘</button>
+    <div class="win-btns">
+      <button class="btn primary" id="btn-next">下一关</button>
+      <button class="btn sec" id="btn-back2">再看棋盘</button>
+    </div>
   </div>
 
 <script>
@@ -463,10 +652,9 @@ class Renderer {
       ctx.fillRect(px + 2, py + 2, s - 4, (s - 4) * 0.3);
     }
 
-    // 出口道闸
+    // 出口：外侧延续路面 + 车道虚线 + 道闸
     const g = gatePos(level, this);
-    const open = view.gateOpen;
-    drawGate(ctx, g, open, this.time);
+    this.drawExit(level, g, view.gateOpen);
 
     // 乘客
     for (const p of level.pickups) {
@@ -539,19 +727,21 @@ class Renderer {
       ctx.stroke();
     }
 
-    // 车窗
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    if (isH) {
-      roundRect(ctx, px + wpx * 0.55, py + hpx * 0.18, wpx * 0.22, hpx * 0.28, 3); ctx.fill();
-      roundRect(ctx, px + wpx * 0.18, py + hpx * 0.18, wpx * 0.2, hpx * 0.28, 3); ctx.fill();
-    } else {
-      roundRect(ctx, px + wpx * 0.18, py + hpx * 0.08, wpx * 0.64, hpx * 0.12, 3); ctx.fill();
-      roundRect(ctx, px + wpx * 0.18, py + hpx * 0.5, wpx * 0.64, hpx * 0.12, 3); ctx.fill();
+    // 车窗（英雄车用 emoji 整车表现，不画窗块）
+    if (!hero) {
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      if (isH) {
+        roundRect(ctx, px + wpx * 0.55, py + hpx * 0.18, wpx * 0.22, hpx * 0.28, 3); ctx.fill();
+        roundRect(ctx, px + wpx * 0.18, py + hpx * 0.18, wpx * 0.2, hpx * 0.28, 3); ctx.fill();
+      } else {
+        roundRect(ctx, px + wpx * 0.18, py + hpx * 0.08, wpx * 0.64, hpx * 0.12, 3); ctx.fill();
+        roundRect(ctx, px + wpx * 0.18, py + hpx * 0.5, wpx * 0.64, hpx * 0.12, 3); ctx.fill();
+      }
     }
 
     // 英雄车：师傅标识 + 已接乘客数
     if (hero) {
-      ctx.font = `${Math.floor(this.cell * 0.5)}px "Segoe UI Emoji","Apple Color Emoji",sans-serif`;
+      ctx.font = `${Math.floor(this.cell * 0.62)}px "Segoe UI Emoji","Apple Color Emoji",sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('🚕', px + wpx / 2, py + hpx / 2);
@@ -576,6 +766,55 @@ class Renderer {
       ctx.textAlign = 'center';
       const cx = px + wpx / 2, cy = py + hpx / 2;
       ctx.fillText(arrowOf(car.bus), cx, cy + 6);
+    }
+  }
+
+  // 出口：外侧延续路面 + 琥珀车道虚线 + 红白条纹道闸（停车场栏杆语义）
+  drawExit(level, g, open) {
+    const ctx = this.ctx;
+    const roadW = this.cssW - g.px;
+    // 外侧延续路面
+    ctx.fillStyle = '#1d2026';
+    ctx.fillRect(g.px, g.py + 3, roadW, g.s - 6);
+    // 车道虚线指向外
+    ctx.strokeStyle = 'rgba(255,184,0,0.75)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    ctx.moveTo(g.px + 2, g.py + g.s / 2);
+    ctx.lineTo(this.cssW - 3, g.py + g.s / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // 出口标签（画布右缘对齐，避免与栏杆重叠）
+    ctx.fillStyle = 'rgba(255,184,0,0.9)';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('出口', this.cssW - 4, g.py - 4);
+
+    if (open) {
+      // 抬起的栏杆：开口上方的短条纹桩 + 绿灯
+      const bx = g.px + 2;
+      for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = i % 2 ? '#fff' : '#e5484d';
+        ctx.fillRect(bx, g.py - 16 + i * 4, 5, 4);
+      }
+      ctx.fillStyle = '#00c853';
+      ctx.beginPath();
+      ctx.arc(bx + 2.5, g.py + g.s - 4, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // 放下的红白条纹栏杆，横跨开口
+      const bx = g.px + 2;
+      const seg = 6;
+      for (let y = g.py + 2; y < g.py + g.s - 2; y += seg) {
+        ctx.fillStyle = Math.floor((y - g.py) / seg) % 2 ? '#fff' : '#e5484d';
+        ctx.fillRect(bx, y, 6, Math.min(seg, g.py + g.s - 2 - y));
+      }
+      ctx.fillStyle = '#e5484d';
+      ctx.beginPath();
+      ctx.arc(bx + 3, g.py + g.s - 4, 3.5, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -619,30 +858,6 @@ function gatePos(level, r) {
     py: r.oy + row * r.cell,
     s: r.cell,
   };
-}
-
-function drawGate(ctx, g, open, time) {
-  // 闸门柱
-  ctx.fillStyle = '#95a5a6';
-  ctx.fillRect(g.px, g.py - 6, 14, 6);
-  ctx.fillRect(g.px, g.py + g.s, 14, 6);
-  // 杆
-  ctx.strokeStyle = open ? '#2ecc71' : '#e74c3c';
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  if (open) {
-    ctx.moveTo(g.px + 2, g.py - 4);
-    ctx.lineTo(g.px + 14, g.py - 10);
-  } else {
-    ctx.moveTo(g.px + 2, g.py - 4);
-    ctx.lineTo(g.px + 12, g.py + g.s + 2);
-  }
-  ctx.stroke();
-  // 出口箭头提示
-  ctx.fillStyle = open ? 'rgba(46,204,113,0.9)' : 'rgba(231,76,60,0.55)';
-  ctx.font = 'bold 20px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(open ? '⇨' : '🔒', g.px + 7, g.py + g.s / 2 + 7);
 }
 
 function arrowOf(bus) {
@@ -723,7 +938,7 @@ class Input {
 }
 
 /* ===== src/main.js ===== */
-// main.js —— 场景状态机 + 游戏循环（原型版）
+// main.js —— 场景状态机 + 游戏循环（v0.2：说明系统 + 星级存档 + 道路选关）
 
 
 
@@ -735,6 +950,7 @@ const canvas = document.getElementById('game');
 const renderer = new Renderer(canvas);
 const ui = {
   title: document.getElementById('title-screen'),
+  help: document.getElementById('help-screen'),
   hud: document.getElementById('hud'),
   levelList: document.getElementById('level-list'),
   levelName: document.getElementById('level-name'),
@@ -742,17 +958,40 @@ const ui = {
   moves: document.getElementById('moves'),
   par: document.getElementById('par'),
   pickupHint: document.getElementById('pickup-hint'),
+  hint: document.getElementById('hint'),
   restart: document.getElementById('btn-restart'),
   back: document.getElementById('btn-back'),
+  start: document.getElementById('btn-start'),
+  helpBtn: document.getElementById('btn-help'),
+  helpClose: document.getElementById('btn-help-close'),
   win: document.getElementById('win-screen'),
   winStars: document.getElementById('win-stars'),
+  winStats: document.getElementById('win-stats'),
   winText: document.getElementById('win-text'),
   next: document.getElementById('btn-next'),
+  back2: document.getElementById('btn-back2'),
 };
 
-let game = null; // { level, state, moves, selectedId, anims, now, won }
+let game = null;
 let screen = 'title';
 let lastT = 0;
+
+// ---------- 星级存档 ----------
+const store = {
+  all() {
+    try { return JSON.parse(localStorage.getItem('cl_stars') || '{}'); } catch { return {}; }
+  },
+  set(id, s) {
+    const m = this.all();
+    m[id] = Math.max(m[id] || 0, s);
+    try { localStorage.setItem('cl_stars', JSON.stringify(m)); } catch {}
+  },
+};
+
+function setHint(t) {
+  ui.hint.textContent = t || '';
+  ui.hint.style.display = t ? 'block' : 'none';
+}
 
 function startLevel(def) {
   const level = createLevel(def);
@@ -768,18 +1007,23 @@ function startLevel(def) {
   };
   screen = 'level';
   ui.title.style.display = 'none';
+  ui.help.style.display = 'none';
   ui.win.style.display = 'none';
-  ui.hud.style.display = 'flex';
+  ui.hud.style.display = 'grid';
   ui.levelName.textContent = `第 ${def.id} 关 · ${def.name}`;
   ui.quote.textContent = `“${def.quote || ''}”`;
-  ui.par.textContent = `标杆 ${def.par} 步`;
+  ui.par.textContent = String(def.par);
   ui.pickupHint.style.display = def.pickups.length ? 'block' : 'none';
+  // 情境提示：首关教拖动；捎人关教接人
+  if (def.pickups.length) setHint('先开到乘客旁接人，道闸才会抬起');
+  else if (def.id === 1 && !(store.all()[1])) setHint('按住红车，向右拖动');
+  else setHint(null);
   renderer.resize(level, window.devicePixelRatio || 1);
   updateHud();
 }
 
 function updateHud() {
-  ui.moves.textContent = `${game.moves} 步`;
+  ui.moves.textContent = String(game.moves);
 }
 
 function tryMove(carId, target) {
@@ -789,22 +1033,24 @@ function tryMove(carId, target) {
   if (!targets.includes(target)) return;
   const before = cloneState(g.state);
   const ns = applyMove(g.level, g.state, carId, target);
-  const changed = JSON.stringify(ns.cars) !== JSON.stringify(g.state.cars) || ns.picked.length !== g.state.picked.length;
   g.state = ns;
   g.moves++;
   g.anims[carId] = { from: { x: before.cars[carId].x, y: before.cars[carId].y }, t0: performance.now(), dur: 130 };
-  // 班车动画
   for (const c of g.level.cars) {
     if (c.bus && (before.cars[c.id].x !== ns.cars[c.id].x || before.cars[c.id].y !== ns.cars[c.id].y)) {
       g.anims[c.id] = { from: { x: before.cars[c.id].x, y: before.cars[c.id].y }, t0: performance.now(), dur: 200 };
     }
   }
-  // 接人特效
+  let pickedNow = false;
   for (const p of g.level.pickups) {
     if (ns.picked.includes(p.id) && !before.picked.includes(p.id)) {
       renderer.burst(g.level, p.x, p.y, '#2ecc71');
+      pickedNow = true;
     }
   }
+  // 提示消除：首关首次移动后 / 接到第一个乘客后
+  if (g.def.id === 1) setHint(null);
+  if (pickedNow) setHint('道闸开了！开出右出口');
   updateHud();
   if (isWin(g.level, g.state)) onWin();
 }
@@ -812,17 +1058,18 @@ function tryMove(carId, target) {
 function onWin() {
   const g = game;
   g.won = true;
+  setHint(null);
   const gate = { x: Math.max(0, Math.min(g.level.exit.x, g.level.w - 1)), y: g.level.exit.y };
   renderer.burst(g.level, gate.x, gate.y, '#ffd640');
   const stars = g.moves <= g.def.par ? 3 : g.moves <= g.def.par + 2 ? 2 : 1;
+  store.set(g.def.id, stars);
   setTimeout(() => {
     ui.win.style.display = 'flex';
     ui.winStars.textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
-    ui.winText.textContent =
-      stars === 3 ? '师傅，稳！' :
-      stars === 2 ? 'technique 还行，再抠两步？' : '能出去就行（笑）';
+    ui.winStats.innerHTML = `本局 <b>${g.moves}</b> 步 · 3★ 标杆 <b>${g.def.par}</b> 步`;
+    ui.winText.textContent = stars === 3 ? '师傅，稳！' : stars === 2 ? '还行，再抠两步？' : '能出去就行（笑）';
     const hasNext = LEVELS.find(l => l.id === g.def.id + 1);
-    ui.next.style.display = hasNext ? 'block' : 'none';
+    ui.next.style.display = hasNext ? 'inline-block' : 'none';
   }, 350);
 }
 
@@ -834,18 +1081,13 @@ const input = new Input(canvas, {
     if (!car || car.bus) return null;
     return { carId: car.id, targets: slideTargets(game.level, game.state, car.id) };
   },
-  onSelect(carId) {
-    if (game) { game.selectedId = carId; }
-  },
-  onDragPreview(carId, target) {
-    if (game) game.dragPreview = target === null ? null : { carId, target };
-  },
+  onSelect(carId) { if (game) game.selectedId = carId; },
+  onDragPreview(carId, target) { if (game) game.dragPreview = target === null ? null : { carId, target }; },
   projectDrag(carId, cx, cy, targets) {
     if (!targets.length || !game) return null;
     const car = game.level.cars.find(c => c.id === carId);
     const rect = canvas.getBoundingClientRect();
     const isH = car.dir === 'h';
-    // 拖动像素差换算为格数
     const d = isH ? cx - (rect.left + renderer.ox + (game.state.cars[carId].x + car.len / 2) * renderer.cell)
                   : cy - (rect.top + renderer.oy + (game.state.cars[carId].y + car.len / 2) * renderer.cell);
     const delta = Math.round(d / renderer.cell);
@@ -868,16 +1110,12 @@ const input = new Input(canvas, {
     const car = game.level.cars.find(c => c.id === carId);
     const isH = car.dir === 'h';
     const cur = game.state.cars[carId][isH ? 'x' : 'y'];
-    const target = isH ? cell.x - (car.len > 1 && cell.x > cur ? 0 : 1) : cell.y - (car.len > 1 && cell.y > cur ? 0 : 1);
-    // 点击目标格：取车头对齐
     const t = isH
       ? (cell.x > cur ? cell.x - car.len + 1 : cell.x)
       : (cell.y > cur ? cell.y - car.len + 1 : cell.y);
     tryMove(carId, t);
   },
-  cellAt(cx, cy) {
-    return renderer.posToCell(game.level, cx, cy);
-  },
+  cellAt(cx, cy) { return renderer.posToCell(game.level, cx, cy); },
 });
 
 function hitCar(cx, cy) {
@@ -903,17 +1141,31 @@ ui.next.addEventListener('click', () => {
   const nxt = LEVELS.find(l => l.id === game.def.id + 1);
   if (nxt) startLevel(nxt);
 });
+ui.back2.addEventListener('click', () => { ui.win.style.display = 'none'; });
+ui.helpBtn.addEventListener('click', () => { ui.help.style.display = 'flex'; });
+ui.helpClose.addEventListener('click', () => { ui.help.style.display = 'none'; });
+ui.start.addEventListener('click', () => {
+  const stars = store.all();
+  const first = LEVELS.find(l => !stars[l.id]) || LEVELS[0];
+  startLevel(first);
+});
 
 function showTitle() {
   ui.title.style.display = 'flex';
   ui.hud.style.display = 'none';
   ui.win.style.display = 'none';
+  ui.help.style.display = 'none';
+  setHint(null);
+  const stars = store.all();
   ui.levelList.innerHTML = '';
   for (const def of LEVELS) {
+    const st = stars[def.id] || 0;
     const btn = document.createElement('button');
     btn.className = 'level-btn';
-    btn.textContent = `${def.id}`;
-    btn.title = def.name;
+    btn.innerHTML =
+      `<span class="no"><b>${String(def.id).padStart(2, '0')}</b></span>` +
+      `<span class="node"></span>` +
+      `<span class="nm">${def.name}<br><span class="stars">${st ? '★'.repeat(st) + '☆'.repeat(3 - st) : '　'}</span></span>`;
     btn.addEventListener('click', () => startLevel(def));
     ui.levelList.appendChild(btn);
   }
@@ -936,15 +1188,13 @@ function frame(t) {
       now: t,
     };
     renderer.draw(game.level, game.state, view, dt);
-    // 拖动预览：高亮目标位置
     if (game.dragPreview) {
       const ctx = renderer.ctx;
       const car = game.level.cars.find(c => c.id === game.dragPreview.carId);
-      const { x, y } = { x: game.dragPreview.target, y: game.state.cars[car.id].y };
       const isH = car.dir === 'h';
-      const px = renderer.ox + (isH ? x : game.state.cars[car.id].x) * renderer.cell;
-      const py = renderer.oy + (isH ? game.state.cars[car.id].y : y) * renderer.cell;
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      const px = renderer.ox + (isH ? game.dragPreview.target : game.state.cars[car.id].x) * renderer.cell;
+      const py = renderer.oy + (isH ? game.state.cars[car.id].y : game.dragPreview.target) * renderer.cell;
+      ctx.strokeStyle = 'rgba(255,184,0,0.6)';
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 4]);
       ctx.strokeRect(px + 3, py + 3, (isH ? car.len : 1) * renderer.cell - 6, (isH ? 1 : car.len) * renderer.cell - 6);
@@ -964,7 +1214,6 @@ if (location.search.includes('debug=1')) {
     start: def => startLevel(def),
     get game() { return game; },
     move: (carId, target) => tryMove(carId, target),
-    solvePath: null, // Day2 由 hint.js 注入浏览器版求解器
   };
 }
 

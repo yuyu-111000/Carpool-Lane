@@ -79,10 +79,9 @@ export class Renderer {
       ctx.fillRect(px + 2, py + 2, s - 4, (s - 4) * 0.3);
     }
 
-    // 出口道闸
+    // 出口：外侧延续路面 + 车道虚线 + 道闸
     const g = gatePos(level, this);
-    const open = view.gateOpen;
-    drawGate(ctx, g, open, this.time);
+    this.drawExit(level, g, view.gateOpen);
 
     // 乘客
     for (const p of level.pickups) {
@@ -155,19 +154,21 @@ export class Renderer {
       ctx.stroke();
     }
 
-    // 车窗
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    if (isH) {
-      roundRect(ctx, px + wpx * 0.55, py + hpx * 0.18, wpx * 0.22, hpx * 0.28, 3); ctx.fill();
-      roundRect(ctx, px + wpx * 0.18, py + hpx * 0.18, wpx * 0.2, hpx * 0.28, 3); ctx.fill();
-    } else {
-      roundRect(ctx, px + wpx * 0.18, py + hpx * 0.08, wpx * 0.64, hpx * 0.12, 3); ctx.fill();
-      roundRect(ctx, px + wpx * 0.18, py + hpx * 0.5, wpx * 0.64, hpx * 0.12, 3); ctx.fill();
+    // 车窗（英雄车用 emoji 整车表现，不画窗块）
+    if (!hero) {
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      if (isH) {
+        roundRect(ctx, px + wpx * 0.55, py + hpx * 0.18, wpx * 0.22, hpx * 0.28, 3); ctx.fill();
+        roundRect(ctx, px + wpx * 0.18, py + hpx * 0.18, wpx * 0.2, hpx * 0.28, 3); ctx.fill();
+      } else {
+        roundRect(ctx, px + wpx * 0.18, py + hpx * 0.08, wpx * 0.64, hpx * 0.12, 3); ctx.fill();
+        roundRect(ctx, px + wpx * 0.18, py + hpx * 0.5, wpx * 0.64, hpx * 0.12, 3); ctx.fill();
+      }
     }
 
     // 英雄车：师傅标识 + 已接乘客数
     if (hero) {
-      ctx.font = `${Math.floor(this.cell * 0.5)}px "Segoe UI Emoji","Apple Color Emoji",sans-serif`;
+      ctx.font = `${Math.floor(this.cell * 0.62)}px "Segoe UI Emoji","Apple Color Emoji",sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('🚕', px + wpx / 2, py + hpx / 2);
@@ -192,6 +193,55 @@ export class Renderer {
       ctx.textAlign = 'center';
       const cx = px + wpx / 2, cy = py + hpx / 2;
       ctx.fillText(arrowOf(car.bus), cx, cy + 6);
+    }
+  }
+
+  // 出口：外侧延续路面 + 琥珀车道虚线 + 红白条纹道闸（停车场栏杆语义）
+  drawExit(level, g, open) {
+    const ctx = this.ctx;
+    const roadW = this.cssW - g.px;
+    // 外侧延续路面
+    ctx.fillStyle = '#1d2026';
+    ctx.fillRect(g.px, g.py + 3, roadW, g.s - 6);
+    // 车道虚线指向外
+    ctx.strokeStyle = 'rgba(255,184,0,0.75)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    ctx.moveTo(g.px + 2, g.py + g.s / 2);
+    ctx.lineTo(this.cssW - 3, g.py + g.s / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // 出口标签（画布右缘对齐，避免与栏杆重叠）
+    ctx.fillStyle = 'rgba(255,184,0,0.9)';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('出口', this.cssW - 4, g.py - 4);
+
+    if (open) {
+      // 抬起的栏杆：开口上方的短条纹桩 + 绿灯
+      const bx = g.px + 2;
+      for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = i % 2 ? '#fff' : '#e5484d';
+        ctx.fillRect(bx, g.py - 16 + i * 4, 5, 4);
+      }
+      ctx.fillStyle = '#00c853';
+      ctx.beginPath();
+      ctx.arc(bx + 2.5, g.py + g.s - 4, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // 放下的红白条纹栏杆，横跨开口
+      const bx = g.px + 2;
+      const seg = 6;
+      for (let y = g.py + 2; y < g.py + g.s - 2; y += seg) {
+        ctx.fillStyle = Math.floor((y - g.py) / seg) % 2 ? '#fff' : '#e5484d';
+        ctx.fillRect(bx, y, 6, Math.min(seg, g.py + g.s - 2 - y));
+      }
+      ctx.fillStyle = '#e5484d';
+      ctx.beginPath();
+      ctx.arc(bx + 3, g.py + g.s - 4, 3.5, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -235,30 +285,6 @@ function gatePos(level, r) {
     py: r.oy + row * r.cell,
     s: r.cell,
   };
-}
-
-function drawGate(ctx, g, open, time) {
-  // 闸门柱
-  ctx.fillStyle = '#95a5a6';
-  ctx.fillRect(g.px, g.py - 6, 14, 6);
-  ctx.fillRect(g.px, g.py + g.s, 14, 6);
-  // 杆
-  ctx.strokeStyle = open ? '#2ecc71' : '#e74c3c';
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  if (open) {
-    ctx.moveTo(g.px + 2, g.py - 4);
-    ctx.lineTo(g.px + 14, g.py - 10);
-  } else {
-    ctx.moveTo(g.px + 2, g.py - 4);
-    ctx.lineTo(g.px + 12, g.py + g.s + 2);
-  }
-  ctx.stroke();
-  // 出口箭头提示
-  ctx.fillStyle = open ? 'rgba(46,204,113,0.9)' : 'rgba(231,76,60,0.55)';
-  ctx.font = 'bold 20px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(open ? '⇨' : '🔒', g.px + 7, g.py + g.s / 2 + 7);
 }
 
 function arrowOf(bus) {

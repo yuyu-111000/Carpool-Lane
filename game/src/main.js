@@ -1,4 +1,4 @@
-// main.js —— 场景状态机 + 游戏循环（原型版）
+// main.js —— 场景状态机 + 游戏循环（v0.2：说明系统 + 星级存档 + 道路选关）
 
 import { createLevel, initialState, cloneState } from './rules/board.js';
 import { slideTargets, applyMove } from './rules/move.js';
@@ -11,6 +11,7 @@ const canvas = document.getElementById('game');
 const renderer = new Renderer(canvas);
 const ui = {
   title: document.getElementById('title-screen'),
+  help: document.getElementById('help-screen'),
   hud: document.getElementById('hud'),
   levelList: document.getElementById('level-list'),
   levelName: document.getElementById('level-name'),
@@ -18,17 +19,40 @@ const ui = {
   moves: document.getElementById('moves'),
   par: document.getElementById('par'),
   pickupHint: document.getElementById('pickup-hint'),
+  hint: document.getElementById('hint'),
   restart: document.getElementById('btn-restart'),
   back: document.getElementById('btn-back'),
+  start: document.getElementById('btn-start'),
+  helpBtn: document.getElementById('btn-help'),
+  helpClose: document.getElementById('btn-help-close'),
   win: document.getElementById('win-screen'),
   winStars: document.getElementById('win-stars'),
+  winStats: document.getElementById('win-stats'),
   winText: document.getElementById('win-text'),
   next: document.getElementById('btn-next'),
+  back2: document.getElementById('btn-back2'),
 };
 
-let game = null; // { level, state, moves, selectedId, anims, now, won }
+let game = null;
 let screen = 'title';
 let lastT = 0;
+
+// ---------- 星级存档 ----------
+const store = {
+  all() {
+    try { return JSON.parse(localStorage.getItem('cl_stars') || '{}'); } catch { return {}; }
+  },
+  set(id, s) {
+    const m = this.all();
+    m[id] = Math.max(m[id] || 0, s);
+    try { localStorage.setItem('cl_stars', JSON.stringify(m)); } catch {}
+  },
+};
+
+function setHint(t) {
+  ui.hint.textContent = t || '';
+  ui.hint.style.display = t ? 'block' : 'none';
+}
 
 function startLevel(def) {
   const level = createLevel(def);
@@ -44,18 +68,23 @@ function startLevel(def) {
   };
   screen = 'level';
   ui.title.style.display = 'none';
+  ui.help.style.display = 'none';
   ui.win.style.display = 'none';
-  ui.hud.style.display = 'flex';
+  ui.hud.style.display = 'grid';
   ui.levelName.textContent = `第 ${def.id} 关 · ${def.name}`;
   ui.quote.textContent = `“${def.quote || ''}”`;
-  ui.par.textContent = `标杆 ${def.par} 步`;
+  ui.par.textContent = String(def.par);
   ui.pickupHint.style.display = def.pickups.length ? 'block' : 'none';
+  // 情境提示：首关教拖动；捎人关教接人
+  if (def.pickups.length) setHint('先开到乘客旁接人，道闸才会抬起');
+  else if (def.id === 1 && !(store.all()[1])) setHint('按住红车，向右拖动');
+  else setHint(null);
   renderer.resize(level, window.devicePixelRatio || 1);
   updateHud();
 }
 
 function updateHud() {
-  ui.moves.textContent = `${game.moves} 步`;
+  ui.moves.textContent = String(game.moves);
 }
 
 function tryMove(carId, target) {
@@ -65,22 +94,24 @@ function tryMove(carId, target) {
   if (!targets.includes(target)) return;
   const before = cloneState(g.state);
   const ns = applyMove(g.level, g.state, carId, target);
-  const changed = JSON.stringify(ns.cars) !== JSON.stringify(g.state.cars) || ns.picked.length !== g.state.picked.length;
   g.state = ns;
   g.moves++;
   g.anims[carId] = { from: { x: before.cars[carId].x, y: before.cars[carId].y }, t0: performance.now(), dur: 130 };
-  // 班车动画
   for (const c of g.level.cars) {
     if (c.bus && (before.cars[c.id].x !== ns.cars[c.id].x || before.cars[c.id].y !== ns.cars[c.id].y)) {
       g.anims[c.id] = { from: { x: before.cars[c.id].x, y: before.cars[c.id].y }, t0: performance.now(), dur: 200 };
     }
   }
-  // 接人特效
+  let pickedNow = false;
   for (const p of g.level.pickups) {
     if (ns.picked.includes(p.id) && !before.picked.includes(p.id)) {
       renderer.burst(g.level, p.x, p.y, '#2ecc71');
+      pickedNow = true;
     }
   }
+  // 提示消除：首关首次移动后 / 接到第一个乘客后
+  if (g.def.id === 1) setHint(null);
+  if (pickedNow) setHint('道闸开了！开出右出口');
   updateHud();
   if (isWin(g.level, g.state)) onWin();
 }
@@ -88,17 +119,18 @@ function tryMove(carId, target) {
 function onWin() {
   const g = game;
   g.won = true;
+  setHint(null);
   const gate = { x: Math.max(0, Math.min(g.level.exit.x, g.level.w - 1)), y: g.level.exit.y };
   renderer.burst(g.level, gate.x, gate.y, '#ffd640');
   const stars = g.moves <= g.def.par ? 3 : g.moves <= g.def.par + 2 ? 2 : 1;
+  store.set(g.def.id, stars);
   setTimeout(() => {
     ui.win.style.display = 'flex';
     ui.winStars.textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
-    ui.winText.textContent =
-      stars === 3 ? '师傅，稳！' :
-      stars === 2 ? 'technique 还行，再抠两步？' : '能出去就行（笑）';
+    ui.winStats.innerHTML = `本局 <b>${g.moves}</b> 步 · 3★ 标杆 <b>${g.def.par}</b> 步`;
+    ui.winText.textContent = stars === 3 ? '师傅，稳！' : stars === 2 ? '还行，再抠两步？' : '能出去就行（笑）';
     const hasNext = LEVELS.find(l => l.id === g.def.id + 1);
-    ui.next.style.display = hasNext ? 'block' : 'none';
+    ui.next.style.display = hasNext ? 'inline-block' : 'none';
   }, 350);
 }
 
@@ -110,18 +142,13 @@ const input = new Input(canvas, {
     if (!car || car.bus) return null;
     return { carId: car.id, targets: slideTargets(game.level, game.state, car.id) };
   },
-  onSelect(carId) {
-    if (game) { game.selectedId = carId; }
-  },
-  onDragPreview(carId, target) {
-    if (game) game.dragPreview = target === null ? null : { carId, target };
-  },
+  onSelect(carId) { if (game) game.selectedId = carId; },
+  onDragPreview(carId, target) { if (game) game.dragPreview = target === null ? null : { carId, target }; },
   projectDrag(carId, cx, cy, targets) {
     if (!targets.length || !game) return null;
     const car = game.level.cars.find(c => c.id === carId);
     const rect = canvas.getBoundingClientRect();
     const isH = car.dir === 'h';
-    // 拖动像素差换算为格数
     const d = isH ? cx - (rect.left + renderer.ox + (game.state.cars[carId].x + car.len / 2) * renderer.cell)
                   : cy - (rect.top + renderer.oy + (game.state.cars[carId].y + car.len / 2) * renderer.cell);
     const delta = Math.round(d / renderer.cell);
@@ -144,16 +171,12 @@ const input = new Input(canvas, {
     const car = game.level.cars.find(c => c.id === carId);
     const isH = car.dir === 'h';
     const cur = game.state.cars[carId][isH ? 'x' : 'y'];
-    const target = isH ? cell.x - (car.len > 1 && cell.x > cur ? 0 : 1) : cell.y - (car.len > 1 && cell.y > cur ? 0 : 1);
-    // 点击目标格：取车头对齐
     const t = isH
       ? (cell.x > cur ? cell.x - car.len + 1 : cell.x)
       : (cell.y > cur ? cell.y - car.len + 1 : cell.y);
     tryMove(carId, t);
   },
-  cellAt(cx, cy) {
-    return renderer.posToCell(game.level, cx, cy);
-  },
+  cellAt(cx, cy) { return renderer.posToCell(game.level, cx, cy); },
 });
 
 function hitCar(cx, cy) {
@@ -179,17 +202,31 @@ ui.next.addEventListener('click', () => {
   const nxt = LEVELS.find(l => l.id === game.def.id + 1);
   if (nxt) startLevel(nxt);
 });
+ui.back2.addEventListener('click', () => { ui.win.style.display = 'none'; });
+ui.helpBtn.addEventListener('click', () => { ui.help.style.display = 'flex'; });
+ui.helpClose.addEventListener('click', () => { ui.help.style.display = 'none'; });
+ui.start.addEventListener('click', () => {
+  const stars = store.all();
+  const first = LEVELS.find(l => !stars[l.id]) || LEVELS[0];
+  startLevel(first);
+});
 
 function showTitle() {
   ui.title.style.display = 'flex';
   ui.hud.style.display = 'none';
   ui.win.style.display = 'none';
+  ui.help.style.display = 'none';
+  setHint(null);
+  const stars = store.all();
   ui.levelList.innerHTML = '';
   for (const def of LEVELS) {
+    const st = stars[def.id] || 0;
     const btn = document.createElement('button');
     btn.className = 'level-btn';
-    btn.textContent = `${def.id}`;
-    btn.title = def.name;
+    btn.innerHTML =
+      `<span class="no"><b>${String(def.id).padStart(2, '0')}</b></span>` +
+      `<span class="node"></span>` +
+      `<span class="nm">${def.name}<br><span class="stars">${st ? '★'.repeat(st) + '☆'.repeat(3 - st) : '　'}</span></span>`;
     btn.addEventListener('click', () => startLevel(def));
     ui.levelList.appendChild(btn);
   }
@@ -212,15 +249,13 @@ function frame(t) {
       now: t,
     };
     renderer.draw(game.level, game.state, view, dt);
-    // 拖动预览：高亮目标位置
     if (game.dragPreview) {
       const ctx = renderer.ctx;
       const car = game.level.cars.find(c => c.id === game.dragPreview.carId);
-      const { x, y } = { x: game.dragPreview.target, y: game.state.cars[car.id].y };
       const isH = car.dir === 'h';
-      const px = renderer.ox + (isH ? x : game.state.cars[car.id].x) * renderer.cell;
-      const py = renderer.oy + (isH ? game.state.cars[car.id].y : y) * renderer.cell;
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      const px = renderer.ox + (isH ? game.dragPreview.target : game.state.cars[car.id].x) * renderer.cell;
+      const py = renderer.oy + (isH ? game.state.cars[car.id].y : game.dragPreview.target) * renderer.cell;
+      ctx.strokeStyle = 'rgba(255,184,0,0.6)';
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 4]);
       ctx.strokeRect(px + 3, py + 3, (isH ? car.len : 1) * renderer.cell - 6, (isH ? 1 : car.len) * renderer.cell - 6);
@@ -240,6 +275,5 @@ if (location.search.includes('debug=1')) {
     start: def => startLevel(def),
     get game() { return game; },
     move: (carId, target) => tryMove(carId, target),
-    solvePath: null, // Day2 由 hint.js 注入浏览器版求解器
   };
 }
