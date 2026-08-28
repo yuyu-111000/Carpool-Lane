@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>挪车！师傅 · Carpool Lane</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #1a1d24; color: #ecf0f1;
+    display: flex; flex-direction: column; align-items: center;
+    height: 100dvh; overflow: hidden;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  #hud {
+    width: 100%; max-width: 560px; display: none; align-items: center; gap: 10px;
+    padding: 10px 14px; font-size: 14px;
+  }
+  #hud .grow { flex: 1; min-width: 0; }
+  #level-name { font-weight: 700; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #quote { color: #95a5a6; font-size: 12px; margin-top: 2px; }
+  #stats { display: flex; gap: 12px; color: #bdc3c7; font-variant-numeric: tabular-nums; }
+  #pickup-hint { display: none; color: #f1c40f; font-size: 12px; margin-top: 2px; }
+  #game {
+    width: min(96vw, 560px, calc(100dvh - 150px));
+    aspect-ratio: 1 / 1;
+    border-radius: 14px; touch-action: none; cursor: pointer;
+    background: #14161c;
+  }
+  .btn {
+    background: #e74c3c; color: #fff; border: none; border-radius: 10px;
+    padding: 10px 16px; font-size: 15px; font-weight: 700; cursor: pointer;
+  }
+  .btn.sec { background: #3d4451; }
+  .overlay {
+    position: fixed; inset: 0; background: rgba(10,12,16,0.82);
+    display: none; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    text-align: center; padding: 24px;
+  }
+  .overlay h1 { font-size: 34px; letter-spacing: 2px; }
+  .overlay h2 { font-size: 22px; }
+  .overlay p { color: #bdc3c7; }
+  #level-list { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 340px; }
+  .level-btn {
+    width: 52px; height: 52px; border-radius: 12px; border: none;
+    background: #2f3640; color: #ecf0f1; font-size: 18px; font-weight: 700; cursor: pointer;
+  }
+  .level-btn:active { background: #e74c3c; }
+  #win-stars { font-size: 44px; letter-spacing: 4px; }
+  #win-text { font-size: 18px; }
+  footer { color: #565f6e; font-size: 11px; padding: 6px; }
+</style>
+</head>
+<body>
+  <div id="hud">
+    <div class="grow">
+      <div id="level-name"></div>
+      <div id="quote"></div>
+      <div id="pickup-hint">💡 顺路捎上 🧍，道闸才会开</div>
+    </div>
+    <div id="stats">
+      <span id="moves">0 步</span>
+      <span id="par"></span>
+    </div>
+    <button class="btn sec" id="btn-restart">重开</button>
+    <button class="btn sec" id="btn-back">关卡</button>
+  </div>
+  <canvas id="game"></canvas>
+  <footer>挪车！师傅 Carpool Lane · 原型 v0.1</footer>
+
+  <div class="overlay" id="title-screen" style="display:flex">
+    <h1>🚕 挪车！师傅</h1>
+    <p>Carpool Lane · 顺路捎人，腾出活路</p>
+    <p style="font-size:13px;color:#95a5a6">横车横移 · 竖车竖移 · 把红车开出右出口</p>
+    <div id="level-list"></div>
+  </div>
+
+  <div class="overlay" id="win-screen">
+    <h2>师傅，出去了！</h2>
+    <div id="win-stars"></div>
+    <div id="win-text"></div>
+    <button class="btn" id="btn-next">下一关</button>
+    <button class="btn sec" id="btn-back2" onclick="document.getElementById('win-screen').style.display='none'">再看棋盘</button>
+  </div>
+
+<script>
+'use strict';
+(function(){
+
+/* ===== src/rules/board.js ===== */
+// board.js —— 棋盘与车辆状态（双端同源：Node 与浏览器共用，零 DOM 依赖）
+// 一个"状态"= { cars: {id: {x,y}}, picked: [乘客id...] }
+// 棋盘静态信息（尺寸/车辆形状/乘客/墙/出口）由 level 定义，只读。
+
+function createLevel(def) {
+  // def: {w,h,exit:{x,y},cars:[{id,x,y,len,dir,role,bus}],pickups:[{id,x,y,order}],walls:[{x,y}]}
+  const lvl = {
+    w: def.w,
+    h: def.h,
+    exit: { x: def.exit.x, y: def.exit.y },
+    cars: def.cars.map(c => ({ ...c })),
+    pickups: (def.pickups || []).map(p => ({ ...p })),
+    walls: (def.walls || []).map(w => ({ ...w })),
+  };
+  // 派生：车辆占格集合、英雄车 id、乘客需求
+  lvl.occupies = carCells;
+  lvl.hero = lvl.cars.find(c => c.role === 'hero');
+  if (!lvl.hero) throw new Error('level needs a hero car');
+  validateNoOverlap(lvl);
+  return lvl;
+}
+
+function carCells(car) {
+  const cells = [];
+  for (let i = 0; i < car.len; i++) {
+    cells.push({
+      x: car.dir === 'h' ? car.x + i : car.x,
+      y: car.dir === 'v' ? car.y + i : car.y,
+    });
+  }
+  return cells;
+}
+
+function initialState(level) {
+  const cars = {};
+  for (const c of level.cars) cars[c.id] = { x: c.x, y: c.y };
+  return { cars, picked: [] };
+}
+
+function cloneState(s) {
+  const cars = {};
+  for (const id in s.cars) cars[id] = { ...s.cars[id] };
+  return { cars, picked: s.picked.slice() };
+}
+
+// 状态键：用于 BFS 去重。"坐标用一位字母编码" —— 7x7 内够用（0-7）
+function stateKey(level, s) {
+  const parts = level.cars.map(c => {
+    const p = s.cars[c.id];
+    const v = c.dir === 'h' ? p.x : p.y;
+    return v.toString(36);
+  });
+  let picked = '';
+  if (level.pickups.length) {
+    const mask = level.pickups.map(p => (s.picked.includes(p.id) ? '1' : '0')).join('');
+    picked = '|' + mask;
+  }
+  return parts.join('') + picked;
+}
+
+// 占用网格：返回 Map "x,y" -> carId（只统计车身，乘客格不占）
+function occupancyGrid(level, s) {
+  const grid = new Map();
+  for (const w of level.walls) grid.set(w.x + ',' + w.y, '#');
+  for (const c of level.cars) {
+    const p = s.cars[c.id];
+    for (const cell of carCells({ ...c, x: p.x, y: p.y })) {
+      grid.set(cell.x + ',' + cell.y, c.id);
+    }
+  }
+  return grid;
+}
+
+function validateNoOverlap(lvl) {
+  const seen = new Map();
+  for (const w of lvl.walls) {
+    const k = w.x + ',' + w.y;
+    if (seen.has(k)) throw new Error('overlap at ' + k);
+    seen.set(k, '#');
+  }
+  for (const c of lvl.cars) {
+    for (const cell of carCells(c)) {
+      if (cell.x < 0 || cell.x >= lvl.w || cell.y < 0 || cell.y >= lvl.h) {
+        throw new Error('car ' + c.id + ' out of bounds');
+      }
+      const k = cell.x + ',' + cell.y;
+      if (seen.has(k)) throw new Error('overlap at ' + k + ' (' + c.id + ')');
+      seen.set(k, c.id);
+    }
+  }
+  for (const p of lvl.pickups) {
+    if (seen.has(p.x + ',' + p.y)) throw new Error('pickup inside car/wall');
+  }
+}
+
+/* ===== src/rules/move.js ===== */
+// move.js —— 移动规则（与求解器共用；班车同步推进在这里，单一事实源）
+// "一步" = 一辆车沿其方向连续滑动任意格数（Rush Hour 惯例）
+
+
+function gridWithout(level, s, excludeId) {
+  const grid = new Map();
+  for (const w of level.walls) grid.set(w.x + ',' + w.y, '#');
+  for (const c of level.cars) {
+    if (c.id === excludeId) continue;
+    const p = s.cars[c.id];
+    for (const cell of carCells({ ...c, x: p.x, y: p.y })) {
+      grid.set(cell.x + ',' + cell.y, c.id);
+    }
+  }
+  return grid;
+}
+
+// 枚举某辆车当前可滑到的所有目标位置（不含原地）
+function slideTargets(level, s, carId) {
+  const car = level.cars.find(c => c.id === carId);
+  if (car.bus) return []; // 班车不可被玩家移动
+  const pos = s.cars[carId];
+  const grid = gridWithout(level, s, carId);
+  const isH = car.dir === 'h';
+  const axis = isH ? 'x' : 'y';
+  const fixed = pos[isH ? 'y' : 'x'];
+  const cur = pos[axis];
+  const max = isH ? level.w : level.h;
+  const targets = [];
+
+  const cellsAt = t => {
+    const cells = [];
+    for (let i = 0; i < car.len; i++) {
+      cells.push(isH ? { x: t + i, y: fixed } : { x: fixed, y: t + i });
+    }
+    return cells;
+  };
+
+  for (let t = cur - 1; t >= 0; t--) {
+    if (cellsAt(t).some(c => grid.has(c.x + ',' + c.y))) break;
+    targets.push(t);
+  }
+  for (let t = cur + 1; t + car.len - 1 < max; t++) {
+    if (cellsAt(t).some(c => grid.has(c.x + ',' + c.y))) break;
+    targets.push(t);
+  }
+  return targets;
+}
+
+// 执行一步：carId 滑到 axis 坐标 target，然后所有班车各走一格（被挡则停）。
+// 返回新状态（不修改入参）。非法移动抛 Error。
+function applyMove(level, s, carId, target) {
+  const car = level.cars.find(c => c.id === carId);
+  if (!car) throw new Error('no car ' + carId);
+  if (car.bus) throw new Error('bus car ' + carId + ' is not movable');
+  const targets = slideTargets(level, s, carId);
+  if (!targets.includes(target)) throw new Error('illegal move ' + carId + '->' + target);
+
+  const isH = car.dir === 'h';
+  const next = {
+    cars: { ...s.cars, [carId]: { ...s.cars[carId] } },
+    picked: s.picked.slice(),
+  };
+  next.cars[carId][isH ? 'x' : 'y'] = target;
+
+  // 捎人：英雄车滑完后，若车身任一格与未接乘客曼哈顿距离 1，接上它
+  const hero = level.hero;
+  const hp = next.cars[hero.id];
+  for (const p of level.pickups) {
+    if (next.picked.includes(p.id)) continue;
+    if (p.order != null) {
+      const pending = level.pickups
+        .filter(q => !next.picked.includes(q.id))
+        .sort((a, b) => a.order - b.order);
+      if (pending[0].id !== p.id) continue; // 按序接送
+    }
+    const near = carCells({ ...hero, x: hp.x, y: hp.y }).some(
+      c => Math.abs(c.x - p.x) + Math.abs(c.y - p.y) === 1
+    );
+    if (near) next.picked.push(p.id);
+  }
+
+  // 班车推进：每步一格，方向 bus.dx/dy；越界或被挡则停
+  for (const c of level.cars) {
+    if (!c.bus) continue;
+    const bp = next.cars[c.id];
+    const nx = bp.x + (c.bus.dx || 0);
+    const ny = bp.y + (c.bus.dy || 0);
+    const grid = gridWithout(level, next, c.id);
+    const body = carCells({ ...c, x: nx, y: ny });
+    const inBounds = body.every(b => b.x >= 0 && b.x < level.w && b.y >= 0 && b.y < level.h);
+    const blocked = body.some(b => grid.has(b.x + ',' + b.y));
+    if (inBounds && !blocked) next.cars[c.id] = { x: nx, y: ny };
+  }
+  return next;
+}
+
+// 玩家可操作的车辆（班车不可动）
+function movableCars(level) {
+  return level.cars.filter(c => !c.bus).map(c => c.id);
+}
+
+/* ===== src/rules/goal.js ===== */
+// goal.js —— 目标谓词（游戏端与求解器共用）
+// 出口 exit 定义在棋盘边界外一格（如右出口 x=w）。"道闸格" = 出口相邻的棋盘内格。
+// 无乘客：英雄车身占据道闸格即胜（道闸抬起，下一步滑出棋盘是纯演出）。
+// 有乘客：接齐乘客道闸才开。
+
+
+function gateCell(level) {
+  const gx = Math.max(0, Math.min(level.exit.x, level.w - 1));
+  const gy = Math.max(0, Math.min(level.exit.y, level.h - 1));
+  return { x: gx, y: gy };
+}
+
+function gateOpen(level, s) {
+  return level.pickups.every(p => s.picked.includes(p.id));
+}
+
+function isWin(level, s) {
+  if (!gateOpen(level, s)) return false;
+  const hero = level.hero;
+  const hp = s.cars[hero.id];
+  const g = gateCell(level);
+  return carCells({ ...hero, x: hp.x, y: hp.y }).some(c => c.x === g.x && c.y === g.y);
+}
+
+/* ===== src/levels.data.js ===== */
+// levels.data.js —— 原型关卡（G1/G2 验证用；Day2 由管线产出 50 关替换）
+// par 由求解器写入；narrowness = 最优解路径数（越少体感越难）
+
+const LEVELS = [
+  {
+    id: 1, chapter: 1, name: '小区窄巷 · 出车', quote: '手刹一松，就走。',
+    w: 6, h: 6, exit: { x: 6, y: 2 },
+    cars: [
+      { id: 'R', x: 3, y: 2, len: 2, dir: 'h', role: 'hero' },
+    ],
+    pickups: [], walls: [], par: 1, narrowness: 1,
+  },
+  {
+    id: 2, chapter: 1, name: '小区窄巷 · 一挡', quote: '这谁停的车？',
+    w: 6, h: 6, exit: { x: 6, y: 2 },
+    cars: [
+      { id: 'R', x: 0, y: 2, len: 2, dir: 'h', role: 'hero' },
+      { id: 'a', x: 2, y: 2, len: 2, dir: 'v' },
+    ],
+    pickups: [], walls: [], par: 2, narrowness: 3,
+  },
+  {
+    id: 3, chapter: 1, name: '小区窄巷 · 三挡', quote: '技术活儿，赏口饭吃。',
+    w: 6, h: 6, exit: { x: 6, y: 2 },
+    cars: [
+      { id: 'R', x: 0, y: 2, len: 2, dir: 'h', role: 'hero' },
+      { id: 'p', x: 2, y: 2, len: 2, dir: 'v' },
+      { id: 'q', x: 3, y: 2, len: 2, dir: 'v' },
+      { id: 's', x: 4, y: 1, len: 2, dir: 'v' },
+    ],
+    pickups: [], walls: [], par: 4, narrowness: 8,
+  },
+  {
+    id: 4, chapter: 2, name: '学校门口 · 接娃', quote: '娃在路边等着呢。',
+    w: 6, h: 6, exit: { x: 6, y: 2 },
+    cars: [
+      { id: 'R', x: 0, y: 2, len: 2, dir: 'h', role: 'hero' },
+      { id: 'a', x: 3, y: 0, len: 3, dir: 'v' },
+    ],
+    pickups: [{ id: 'p1', x: 2, y: 3 }],
+    walls: [], par: 3, narrowness: 2,
+  },
+  {
+    id: 5, chapter: 2, name: '学校门口 · 倒车接人', quote: '稍等，倒一下车。',
+    w: 6, h: 6, exit: { x: 6, y: 2 },
+    cars: [
+      { id: 'R', x: 2, y: 2, len: 2, dir: 'h', role: 'hero' },
+      { id: 'a', x: 4, y: 2, len: 2, dir: 'v' },
+    ],
+    pickups: [{ id: 'p1', x: 0, y: 3 }],
+    walls: [], par: 3, narrowness: 2,
+  },
+  {
+    id: 6, chapter: 2, name: '学校门口 · 挤一挤', quote: '上车都上车！',
+    w: 6, h: 6, exit: { x: 6, y: 2 },
+    cars: [
+      { id: 'R', x: 0, y: 2, len: 2, dir: 'h', role: 'hero' },
+      { id: 'p', x: 2, y: 2, len: 2, dir: 'v' },
+      { id: 'q', x: 3, y: 2, len: 2, dir: 'v' },
+      { id: 's', x: 4, y: 1, len: 2, dir: 'v' },
+    ],
+    pickups: [{ id: 'p1', x: 5, y: 3 }],
+    walls: [], par: 4, narrowness: 8,
+  },
+];
+
+/* ===== src/render.js ===== */
+// render.js —— Canvas 渲染（原型版：棋盘/车/乘客/道闸/粒子）
+
+const CAR_COLORS = ['#4a90d9', '#7b68ee', '#2ecc71', '#f39c12', '#e67e22', '#1abc9c', '#9b59b6', '#34495e'];
+
+class Renderer {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.particles = [];
+    this.time = 0;
+  }
+
+  resize(level, dpr) {
+    const cs = getComputedStyle(this.canvas);
+    const cssW = parseFloat(cs.width) || 480;
+    const cssH = parseFloat(cs.height) || 480;
+    this.canvas.width = Math.round(cssW * dpr);
+    this.canvas.height = Math.round(cssH * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.cssW = cssW;
+    this.cssH = cssH;
+    this.layout(level);
+  }
+
+  layout(level) {
+    const margin = 12;
+    // 出口开在右边界：右侧留出闸门视觉带
+    const availW = this.cssW - margin * 2 - 18;
+    const availH = this.cssH - margin * 2;
+    this.cell = Math.floor(Math.min(availW / level.w, availH / level.h));
+    this.ox = Math.round((this.cssW - 18 - this.cell * level.w) / 2);
+    this.oy = Math.round((this.cssH - this.cell * level.h) / 2);
+  }
+
+  cellRect(level, x, y) {
+    return { px: this.ox + x * this.cell, py: this.oy + y * this.cell, s: this.cell };
+  }
+
+  posToCell(level, clientX, clientY) {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = Math.floor((clientX - rect.left - this.ox) / this.cell);
+    const y = Math.floor((clientY - rect.top - this.oy) / this.cell);
+    return { x, y, inside: x >= 0 && x < level.w && y >= 0 && y < level.h };
+  }
+
+  draw(level, state, view, dt) {
+    this.time += dt;
+    const ctx = this.ctx;
+    ctx.clearRect(0, 0, this.cssW, this.cssH);
+    this.layout(level);
+
+    // 底盘（沥青）
+    ctx.fillStyle = '#2b303b';
+    ctx.fillRect(this.ox, this.oy, this.cell * level.w, this.cell * level.h);
+
+    // 网格
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= level.w; i++) {
+      ctx.beginPath();
+      ctx.moveTo(this.ox + i * this.cell + 0.5, this.oy);
+      ctx.lineTo(this.ox + i * this.cell + 0.5, this.oy + this.cell * level.h);
+      ctx.stroke();
+    }
+    for (let j = 0; j <= level.h; j++) {
+      ctx.beginPath();
+      ctx.moveTo(this.ox, this.oy + j * this.cell + 0.5);
+      ctx.lineTo(this.ox + this.cell * level.w, this.oy + j * this.cell + 0.5);
+      ctx.stroke();
+    }
+
+    // 墙
+    for (const w of level.walls) {
+      const { px, py, s } = this.cellRect(level, w.x, w.y);
+      ctx.fillStyle = '#565f6e';
+      roundRect(ctx, px + 2, py + 2, s - 4, s - 4, 4);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(px + 2, py + 2, s - 4, (s - 4) * 0.3);
+    }
+
+    // 出口道闸
+    const g = gatePos(level, this);
+    const open = view.gateOpen;
+    drawGate(ctx, g, open, this.time);
+
+    // 乘客
+    for (const p of level.pickups) {
+      if (state.picked.includes(p.id)) continue;
+      const { px, py, s } = this.cellRect(level, p.x, p.y);
+      const bob = Math.sin(this.time / 300) * 3;
+      ctx.font = `${Math.floor(s * 0.62)}px "Segoe UI Emoji","Apple Color Emoji",sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🧍', px + s / 2, py + s / 2 + bob);
+      // 待接光环
+      ctx.strokeStyle = `rgba(255,214,64,${0.5 + 0.3 * Math.sin(this.time / 200)})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(px + s / 2, py + s / 2, s * 0.42, 0, Math.PI * 2);
+      ctx.stroke();
+      if (p.order != null) {
+        ctx.fillStyle = '#ffd640';
+        ctx.font = `bold ${Math.floor(s * 0.3)}px sans-serif`;
+        ctx.fillText(String(p.order), px + s * 0.82, py + s * 0.18);
+      }
+    }
+
+    // 车辆（含动画插值）
+    for (const car of level.cars) {
+      const pos = state.cars[car.id];
+      let x = pos.x, y = pos.y;
+      const anim = view.anims && view.anims[car.id];
+      if (anim) {
+        const t = easeOut(Math.min(1, (view.now - anim.t0) / anim.dur));
+        x = anim.from.x + (pos.x - anim.from.x) * t;
+        y = anim.from.y + (pos.y - anim.from.y) * t;
+      }
+      this.drawCar(level, car, x, y, view, state);
+    }
+
+    // 粒子
+    this.updateParticles(dt);
+  }
+
+  drawCar(level, car, x, y, view, state) {
+    const ctx = this.ctx;
+    const isH = car.dir === 'h';
+    const wpx = (isH ? car.len : 1) * this.cell - 6;
+    const hpx = (isH ? 1 : car.len) * this.cell - 6;
+    const px = this.ox + x * this.cell + 3;
+    const py = this.oy + y * this.cell + 3;
+    const hero = car.role === 'hero';
+    const selected = view.selectedId === car.id;
+    const bus = !!car.bus;
+
+    // 阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    roundRect(ctx, px + 2, py + 3, wpx, hpx, 8);
+    ctx.fill();
+
+    // 车身
+    ctx.fillStyle = hero ? '#e74c3c' : bus ? '#f1c40f' : CAR_COLORS[(car.id.charCodeAt(0) + car.len) % CAR_COLORS.length];
+    roundRect(ctx, px, py, wpx, hpx, 8);
+    ctx.fill();
+    if (selected) {
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      roundRect(ctx, px, py, wpx, hpx, 8);
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 2;
+      roundRect(ctx, px, py, wpx, hpx, 8);
+      ctx.stroke();
+    }
+
+    // 车窗
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    if (isH) {
+      roundRect(ctx, px + wpx * 0.55, py + hpx * 0.18, wpx * 0.22, hpx * 0.28, 3); ctx.fill();
+      roundRect(ctx, px + wpx * 0.18, py + hpx * 0.18, wpx * 0.2, hpx * 0.28, 3); ctx.fill();
+    } else {
+      roundRect(ctx, px + wpx * 0.18, py + hpx * 0.08, wpx * 0.64, hpx * 0.12, 3); ctx.fill();
+      roundRect(ctx, px + wpx * 0.18, py + hpx * 0.5, wpx * 0.64, hpx * 0.12, 3); ctx.fill();
+    }
+
+    // 英雄车：师傅标识 + 已接乘客数
+    if (hero) {
+      ctx.font = `${Math.floor(this.cell * 0.5)}px "Segoe UI Emoji","Apple Color Emoji",sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🚕', px + wpx / 2, py + hpx / 2);
+      if (level.pickups.length) {
+        const n = state.picked.length;
+        if (n > 0) {
+          ctx.fillStyle = '#2ecc71';
+          ctx.beginPath();
+          ctx.arc(px + wpx - 4, py + 6, 9, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.fillText(String(n), px + wpx - 4, py + 7);
+        }
+      }
+    }
+
+    // 班车箭头
+    if (bus) {
+      ctx.fillStyle = '#7f6000';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      const cx = px + wpx / 2, cy = py + hpx / 2;
+      ctx.fillText(arrowOf(car.bus), cx, cy + 6);
+    }
+  }
+
+  burst(level, cellX, cellY, color) {
+    const { px, py, s } = this.cellRect(level, cellX, cellY);
+    for (let i = 0; i < 26; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const v = 60 + Math.random() * 160;
+      this.particles.push({
+        x: px + s / 2, y: py + s / 2,
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60,
+        life: 0.6 + Math.random() * 0.5, age: 0,
+        color: color || (Math.random() < 0.5 ? '#ffd640' : '#e74c3c'),
+        size: 3 + Math.random() * 4,
+      });
+    }
+  }
+
+  updateParticles(dt) {
+    const ctx = this.ctx;
+    const dts = dt / 1000;
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.age += dts;
+      if (p.age > p.life) { this.particles.splice(i, 1); continue; }
+      p.x += p.vx * dts;
+      p.y += p.vy * dts;
+      p.vy += 320 * dts;
+      ctx.globalAlpha = Math.max(0, 1 - p.age / p.life);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+function gatePos(level, r) {
+  const row = level.exit.y;
+  return {
+    px: r.ox + level.w * r.cell + 2,
+    py: r.oy + row * r.cell,
+    s: r.cell,
+  };
+}
+
+function drawGate(ctx, g, open, time) {
+  // 闸门柱
+  ctx.fillStyle = '#95a5a6';
+  ctx.fillRect(g.px, g.py - 6, 14, 6);
+  ctx.fillRect(g.px, g.py + g.s, 14, 6);
+  // 杆
+  ctx.strokeStyle = open ? '#2ecc71' : '#e74c3c';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  if (open) {
+    ctx.moveTo(g.px + 2, g.py - 4);
+    ctx.lineTo(g.px + 14, g.py - 10);
+  } else {
+    ctx.moveTo(g.px + 2, g.py - 4);
+    ctx.lineTo(g.px + 12, g.py + g.s + 2);
+  }
+  ctx.stroke();
+  // 出口箭头提示
+  ctx.fillStyle = open ? 'rgba(46,204,113,0.9)' : 'rgba(231,76,60,0.55)';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(open ? '⇨' : '🔒', g.px + 7, g.py + g.s / 2 + 7);
+}
+
+function arrowOf(bus) {
+  if (bus.dy === -1) return '↑';
+  if (bus.dy === 1) return '↓';
+  if (bus.dx === -1) return '←';
+  return '→';
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function easeOut(t) {
+  return 1 - (1 - t) * (1 - t);
+}
+
+/* ===== src/input.js ===== */
+// input.js —— 指针输入：拖动（网格吸附）+ 点击两模式
+
+class Input {
+  constructor(canvas, callbacks) {
+    this.canvas = canvas;
+    this.cb = callbacks; // { onMove(carId, target), onSelect(carId), onDragPreview(carId, target) }
+    this.drag = null;
+    canvas.style.touchAction = 'none';
+
+    canvas.addEventListener('pointerdown', e => this.down(e));
+    canvas.addEventListener('pointermove', e => this.move(e));
+    canvas.addEventListener('pointerup', e => this.up(e));
+    canvas.addEventListener('pointercancel', e => this.cancel(e));
+  }
+
+  down(e) {
+    e.preventDefault();
+    this.canvas.setPointerCapture(e.pointerId);
+    const hit = this.cb.hitTest(e.clientX, e.clientY);
+    if (!hit) return;
+    const { carId, targets } = hit;
+    this.drag = { carId, targets, startX: e.clientX, startY: e.clientY, moved: false };
+    this.cb.onSelect(carId);
+  }
+
+  move(e) {
+    if (!this.drag) return;
+    const dx = e.clientX - this.drag.startX;
+    const dy = e.clientY - this.drag.startY;
+    if (Math.abs(dx) + Math.abs(dy) > 6) this.drag.moved = true;
+    const target = this.cb.projectDrag(this.drag.carId, e.clientX, e.clientY, this.drag.targets);
+    this.cb.onDragPreview(this.drag.carId, target);
+  }
+
+  up(e) {
+    if (!this.drag) return;
+    const d = this.drag;
+    this.drag = null;
+    if (d.moved) {
+      const target = this.cb.projectDrag(d.carId, e.clientX, e.clientY, d.targets);
+      if (target !== null) this.cb.onMove(d.carId, target);
+      else this.cb.onDragPreview(d.carId, null);
+    } else {
+      // 点击模式：点车选中后再点目标格
+      const cell = this.cb.cellAt(e.clientX, e.clientY);
+      if (cell) this.cb.onTapCell(d.carId, cell);
+    }
+  }
+
+  cancel() {
+    if (this.drag) this.cb.onDragPreview(this.drag.carId, null);
+    this.drag = null;
+  }
+}
+
+/* ===== src/main.js ===== */
+// main.js —— 场景状态机 + 游戏循环（原型版）
+
+
+
+
+
+
+
+const canvas = document.getElementById('game');
+const renderer = new Renderer(canvas);
+const ui = {
+  title: document.getElementById('title-screen'),
+  hud: document.getElementById('hud'),
+  levelList: document.getElementById('level-list'),
+  levelName: document.getElementById('level-name'),
+  quote: document.getElementById('quote'),
+  moves: document.getElementById('moves'),
+  par: document.getElementById('par'),
+  pickupHint: document.getElementById('pickup-hint'),
+  restart: document.getElementById('btn-restart'),
+  back: document.getElementById('btn-back'),
+  win: document.getElementById('win-screen'),
+  winStars: document.getElementById('win-stars'),
+  winText: document.getElementById('win-text'),
+  next: document.getElementById('btn-next'),
+};
+
+let game = null; // { level, state, moves, selectedId, anims, now, won }
+let screen = 'title';
+let lastT = 0;
+
+function startLevel(def) {
+  const level = createLevel(def);
+  game = {
+    def, level,
+    state: initialState(level),
+    moves: 0,
+    selectedId: null,
+    anims: {},
+    now: performance.now(),
+    won: false,
+    dragPreview: null,
+  };
+  screen = 'level';
+  ui.title.style.display = 'none';
+  ui.win.style.display = 'none';
+  ui.hud.style.display = 'flex';
+  ui.levelName.textContent = `第 ${def.id} 关 · ${def.name}`;
+  ui.quote.textContent = `“${def.quote || ''}”`;
+  ui.par.textContent = `标杆 ${def.par} 步`;
+  ui.pickupHint.style.display = def.pickups.length ? 'block' : 'none';
+  renderer.resize(level, window.devicePixelRatio || 1);
+  updateHud();
+}
+
+function updateHud() {
+  ui.moves.textContent = `${game.moves} 步`;
+}
+
+function tryMove(carId, target) {
+  const g = game;
+  if (g.won) return;
+  const targets = slideTargets(g.level, g.state, carId);
+  if (!targets.includes(target)) return;
+  const before = cloneState(g.state);
+  const ns = applyMove(g.level, g.state, carId, target);
+  const changed = JSON.stringify(ns.cars) !== JSON.stringify(g.state.cars) || ns.picked.length !== g.state.picked.length;
+  g.state = ns;
+  g.moves++;
+  g.anims[carId] = { from: { x: before.cars[carId].x, y: before.cars[carId].y }, t0: performance.now(), dur: 130 };
+  // 班车动画
+  for (const c of g.level.cars) {
+    if (c.bus && (before.cars[c.id].x !== ns.cars[c.id].x || before.cars[c.id].y !== ns.cars[c.id].y)) {
+      g.anims[c.id] = { from: { x: before.cars[c.id].x, y: before.cars[c.id].y }, t0: performance.now(), dur: 200 };
+    }
+  }
+  // 接人特效
+  for (const p of g.level.pickups) {
+    if (ns.picked.includes(p.id) && !before.picked.includes(p.id)) {
+      renderer.burst(g.level, p.x, p.y, '#2ecc71');
+    }
+  }
+  updateHud();
+  if (isWin(g.level, g.state)) onWin();
+}
+
+function onWin() {
+  const g = game;
+  g.won = true;
+  const gate = { x: Math.max(0, Math.min(g.level.exit.x, g.level.w - 1)), y: g.level.exit.y };
+  renderer.burst(g.level, gate.x, gate.y, '#ffd640');
+  const stars = g.moves <= g.def.par ? 3 : g.moves <= g.def.par + 2 ? 2 : 1;
+  setTimeout(() => {
+    ui.win.style.display = 'flex';
+    ui.winStars.textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+    ui.winText.textContent =
+      stars === 3 ? '师傅，稳！' :
+      stars === 2 ? 'technique 还行，再抠两步？' : '能出去就行（笑）';
+    const hasNext = LEVELS.find(l => l.id === g.def.id + 1);
+    ui.next.style.display = hasNext ? 'block' : 'none';
+  }, 350);
+}
+
+// ---------- 输入回调 ----------
+const input = new Input(canvas, {
+  hitTest(cx, cy) {
+    if (!game || game.won) return null;
+    const car = hitCar(cx, cy);
+    if (!car || car.bus) return null;
+    return { carId: car.id, targets: slideTargets(game.level, game.state, car.id) };
+  },
+  onSelect(carId) {
+    if (game) { game.selectedId = carId; }
+  },
+  onDragPreview(carId, target) {
+    if (game) game.dragPreview = target === null ? null : { carId, target };
+  },
+  projectDrag(carId, cx, cy, targets) {
+    if (!targets.length || !game) return null;
+    const car = game.level.cars.find(c => c.id === carId);
+    const rect = canvas.getBoundingClientRect();
+    const isH = car.dir === 'h';
+    // 拖动像素差换算为格数
+    const d = isH ? cx - (rect.left + renderer.ox + (game.state.cars[carId].x + car.len / 2) * renderer.cell)
+                  : cy - (rect.top + renderer.oy + (game.state.cars[carId].y + car.len / 2) * renderer.cell);
+    const delta = Math.round(d / renderer.cell);
+    const cur = game.state.cars[carId][isH ? 'x' : 'y'];
+    let best = null;
+    let bestDist = Infinity;
+    for (const t of targets) {
+      const dist = Math.abs(t - (cur + delta));
+      if (dist < bestDist) { bestDist = dist; best = t; }
+    }
+    if (best === cur) return null;
+    return best;
+  },
+  onMove(carId, target) {
+    tryMove(carId, target);
+    if (game) game.dragPreview = null;
+  },
+  onTapCell(carId, cell) {
+    if (!game) return;
+    const car = game.level.cars.find(c => c.id === carId);
+    const isH = car.dir === 'h';
+    const cur = game.state.cars[carId][isH ? 'x' : 'y'];
+    const target = isH ? cell.x - (car.len > 1 && cell.x > cur ? 0 : 1) : cell.y - (car.len > 1 && cell.y > cur ? 0 : 1);
+    // 点击目标格：取车头对齐
+    const t = isH
+      ? (cell.x > cur ? cell.x - car.len + 1 : cell.x)
+      : (cell.y > cur ? cell.y - car.len + 1 : cell.y);
+    tryMove(carId, t);
+  },
+  cellAt(cx, cy) {
+    return renderer.posToCell(game.level, cx, cy);
+  },
+});
+
+function hitCar(cx, cy) {
+  const g = game;
+  const cellPos = renderer.posToCell(g.level, cx, cy);
+  if (!cellPos.inside) return null;
+  const grid = new Map();
+  for (const c of g.level.cars) {
+    const p = g.state.cars[c.id];
+    for (let i = 0; i < c.len; i++) {
+      const x = c.dir === 'h' ? p.x + i : p.x;
+      const y = c.dir === 'v' ? p.y + i : p.y;
+      grid.set(x + ',' + y, c);
+    }
+  }
+  return grid.get(cellPos.x + ',' + cellPos.y) || null;
+}
+
+// ---------- UI 绑定 ----------
+ui.restart.addEventListener('click', () => game && startLevel(game.def));
+ui.back.addEventListener('click', () => { screen = 'title'; showTitle(); });
+ui.next.addEventListener('click', () => {
+  const nxt = LEVELS.find(l => l.id === game.def.id + 1);
+  if (nxt) startLevel(nxt);
+});
+
+function showTitle() {
+  ui.title.style.display = 'flex';
+  ui.hud.style.display = 'none';
+  ui.win.style.display = 'none';
+  ui.levelList.innerHTML = '';
+  for (const def of LEVELS) {
+    const btn = document.createElement('button');
+    btn.className = 'level-btn';
+    btn.textContent = `${def.id}`;
+    btn.title = def.name;
+    btn.addEventListener('click', () => startLevel(def));
+    ui.levelList.appendChild(btn);
+  }
+}
+
+window.addEventListener('resize', () => {
+  if (game) renderer.resize(game.level, window.devicePixelRatio || 1);
+});
+
+// ---------- 主循环 ----------
+function frame(t) {
+  const dt = Math.min(50, t - lastT || 16);
+  lastT = t;
+  if (game && screen === 'level') {
+    game.now = t;
+    const view = {
+      gateOpen: gateOpen(game.level, game.state),
+      selectedId: game.selectedId,
+      anims: game.anims,
+      now: t,
+    };
+    renderer.draw(game.level, game.state, view, dt);
+    // 拖动预览：高亮目标位置
+    if (game.dragPreview) {
+      const ctx = renderer.ctx;
+      const car = game.level.cars.find(c => c.id === game.dragPreview.carId);
+      const { x, y } = { x: game.dragPreview.target, y: game.state.cars[car.id].y };
+      const isH = car.dir === 'h';
+      const px = renderer.ox + (isH ? x : game.state.cars[car.id].x) * renderer.cell;
+      const py = renderer.oy + (isH ? game.state.cars[car.id].y : y) * renderer.cell;
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(px + 3, py + 3, (isH ? car.len : 1) * renderer.cell - 6, (isH ? 1 : car.len) * renderer.cell - 6);
+      ctx.setLineDash([]);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+showTitle();
+requestAnimationFrame(frame);
+
+// 调试钩子（仅 ?debug=1 时暴露）：自动化测试用
+if (location.search.includes('debug=1')) {
+  window.__CL = {
+    levels: LEVELS,
+    start: def => startLevel(def),
+    get game() { return game; },
+    move: (carId, target) => tryMove(carId, target),
+    solvePath: null, // Day2 由 hint.js 注入浏览器版求解器
+  };
+}
+
+})();
+
+</script>
+</body>
+</html>
