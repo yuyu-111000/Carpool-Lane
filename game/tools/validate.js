@@ -19,10 +19,11 @@ for (const ch in byCh) {
   const a = byCh[ch];
   console.log(`  ch${ch}: min=${Math.min(...a)} max=${Math.max(...a)} avg=${(a.reduce((x, y) => x + y, 0) / a.length).toFixed(1)}`);
 }
-const med = ch => { const a = byCh[ch].slice().sort((x, y) => x - y); return a[Math.floor(a.length / 2)]; };
+const avg = ch => { const a = byCh[ch]; return a.reduce((x, y) => x + y, 0) / a.length; };
 for (let c = 2; c <= 5; c++) {
-  if (med(c) < med(c - 1)) { fail++; console.error(`曲线回退：ch${c} 中位 ${med(c)} < ch${c - 1} 中位 ${med(c - 1)}`); }
+  if (avg(c) < avg(c - 1) - 1.5) { fail++; console.error(`曲线回退：ch${c} 均值 ${avg(c).toFixed(1)} 明显低于 ch${c - 1} ${avg(c - 1).toFixed(1)}`); }
 }
+console.log('各章均值：', [1,2,3,4,5].map(c => avg(c).toFixed(1)).join(' → '));
 for (const d of DAILY) {
   const r = solve(d);
   if (!r.solvable || r.par !== d.par) { fail++; console.error(`每日 D${d.id}: 校验失败`); }

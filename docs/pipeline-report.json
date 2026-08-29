@@ -5,12 +5,12 @@
       "ch": 1,
       "parRange": [
         2,
-        3
+        8
       ],
       "stats": {
-        "attempts": 13,
+        "attempts": 73,
         "rejectLayout": 0,
-        "rejectUnsolvable": 1,
+        "rejectUnsolvable": 59,
         "rejectPar": 0,
         "rejectBus": 0,
         "pruned": 0
@@ -26,122 +26,122 @@
         3,
         2,
         3,
-        3
+        8
       ]
     },
     {
       "ch": 2,
       "parRange": [
-        3,
-        6
+        4,
+        9
       ],
       "stats": {
-        "attempts": 14,
-        "rejectLayout": 0,
-        "rejectUnsolvable": 2,
+        "attempts": 73,
+        "rejectLayout": 3,
+        "rejectUnsolvable": 58,
         "rejectPar": 0,
         "rejectBus": 0,
         "pruned": 0
       },
       "accepted": 12,
       "finalPars": [
-        3,
         4,
-        4,
-        2,
-        4,
-        4,
-        5,
-        3,
         6,
-        6
+        6,
+        4,
+        7,
+        7,
+        7,
+        4,
+        9,
+        9
       ]
     },
     {
       "ch": 3,
       "parRange": [
-        4,
-        6
+        6,
+        16
       ],
       "stats": {
-        "attempts": 18,
-        "rejectLayout": 0,
-        "rejectUnsolvable": 6,
+        "attempts": 72,
+        "rejectLayout": 2,
+        "rejectUnsolvable": 55,
         "rejectPar": 0,
         "rejectBus": 0,
         "pruned": 0
       },
       "accepted": 12,
       "finalPars": [
-        4,
-        4,
-        4,
-        3,
-        4,
-        5,
-        5,
-        3,
-        5,
-        6
+        6,
+        7,
+        7,
+        6,
+        8,
+        8,
+        9,
+        6,
+        11,
+        16
       ]
     },
     {
       "ch": 4,
       "parRange": [
-        5,
-        9
+        10,
+        24
       ],
       "stats": {
-        "attempts": 35,
-        "rejectLayout": 6,
-        "rejectUnsolvable": 17,
+        "attempts": 87,
+        "rejectLayout": 19,
+        "rejectUnsolvable": 52,
         "rejectPar": 0,
         "rejectBus": 0,
         "pruned": 0
       },
       "accepted": 12,
       "finalPars": [
-        5,
-        5,
+        10,
+        12,
+        13,
         6,
-        3,
+        13,
+        15,
+        17,
         7,
-        8,
-        8,
-        4,
-        8,
-        9
+        17,
+        24
       ]
     },
     {
       "ch": 5,
       "parRange": [
-        6,
-        10
+        12,
+        11
       ],
       "stats": {
-        "attempts": 142,
-        "rejectLayout": 40,
-        "rejectUnsolvable": 90,
+        "attempts": 203,
+        "rejectLayout": 13,
+        "rejectUnsolvable": 175,
         "rejectPar": 0,
         "rejectBus": 0,
         "pruned": 0
       },
       "accepted": 12,
       "finalPars": [
-        6,
-        6,
-        7,
-        4,
-        7,
+        12,
+        12,
+        12,
         8,
-        8,
-        5,
-        10,
-        10
+        13,
+        16,
+        16,
+        9,
+        16,
+        11
       ]
     }
   ],
-  "startedAt": "2026-08-29T02:42:33.576Z",
+  "startedAt": "2026-08-29T07:51:55.169Z",
   "elapsedMs": 0
 }

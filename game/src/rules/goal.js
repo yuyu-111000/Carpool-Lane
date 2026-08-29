@@ -19,6 +19,8 @@ export function isWin(level, s) {
   if (!gateOpen(level, s)) return false;
   const hero = level.hero;
   const hp = s.cars[hero.id];
+  const dir = hp.dir || hero.dir;
+  if (dir !== 'h' || hp.y !== gateCell(level).y) return false; // 必须横向对齐出口行才能冲出
   const g = gateCell(level);
-  return carCells({ ...hero, x: hp.x, y: hp.y }).some(c => c.x === g.x && c.y === g.y);
+  return carCells({ ...hero, dir, x: hp.x, y: hp.y }).some(c => c.x === g.x && c.y === g.y);
 }

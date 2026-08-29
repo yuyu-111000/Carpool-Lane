@@ -1,7 +1,7 @@
 // main.js —— 场景状态机 + 游戏循环（v0.2：说明系统 + 星级存档 + 道路选关）
 
 import { createLevel, initialState, cloneState } from './rules/board.js';
-import { slideTargets, applyMove } from './rules/move.js';
+import { slideTargets, applyMove, rotTargets } from './rules/move.js';
 import { gateOpen, isWin } from './rules/goal.js';
 import { LEVELS, DAILY } from './levels.data.js';
 import { Renderer } from './render.js';
@@ -108,8 +108,8 @@ function updateHud() {
 function tryMove(carId, target) {
   const g = game;
   if (g.won) return;
-  const targets = slideTargets(g.level, g.state, carId);
-  if (!targets.includes(target)) return;
+  const legal = [...slideTargets(g.level, g.state, carId), ...rotTargets(g.level, g.state, carId)];
+  if (!legal.includes(target)) return;
   const before = cloneState(g.state);
   const gateBefore = gateOpen(g.level, g.state);
   const ns = applyMove(g.level, g.state, carId, target);
@@ -174,20 +174,29 @@ const input = new Input(canvas, {
   onSelect(carId) { if (game) game.selectedId = carId; },
   onDragPreview(carId, target) { if (game) game.dragPreview = target === null ? null : { carId, target }; },
   projectDrag(carId, cx, cy, targets) {
-    if (!targets.length || !game) return null;
+    if (!game) return null;
     const car = game.level.cars.find(c => c.id === carId);
+    const st = game.state.cars[carId];
+    const dir = st.dir || car.dir;
+    const isH = dir === 'h';
     const rect = canvas.getBoundingClientRect();
-    const isH = car.dir === 'h';
-    const d = isH ? cx - (rect.left + renderer.ox + (game.state.cars[carId].x + car.len / 2) * renderer.cell)
-                  : cy - (rect.top + renderer.oy + (game.state.cars[carId].y + car.len / 2) * renderer.cell);
-    const delta = Math.round(d / renderer.cell);
-    const cur = game.state.cars[carId][isH ? 'x' : 'y'];
-    let best = null;
-    let bestDist = Infinity;
-    for (const t of targets) {
-      const dist = Math.abs(t - (cur + delta));
-      if (dist < bestDist) { bestDist = dist; best = t; }
+    const centerX = rect.left + renderer.ox + (st.x + (isH ? car.len : 1) / 2) * renderer.cell;
+    const centerY = rect.top + renderer.oy + (st.y + (isH ? 1 : car.len) / 2) * renderer.cell;
+    const dx = cx - centerX, dy = cy - centerY;
+    const axis = isH ? dx : dy;
+    const perp = isH ? dy : dx;
+    // 垂直于车身方向拖动 => 原地转向（len2 且本关开启转向）
+    if (game.level.turn && car.len === 2 && Math.abs(perp) > Math.abs(axis) && Math.abs(perp) > renderer.cell * 0.4) {
+      const sign = perp > 0 ? '+' : '-';
+      const rots = rotTargets(game.level, game.state, carId);
+      for (const piv of ['0', '1']) if (rots.includes('r' + piv + sign)) return 'r' + piv + sign;
+      return null;
     }
+    if (!targets.length) return null;
+    const delta = Math.round(axis / renderer.cell);
+    const cur = st[isH ? 'x' : 'y'];
+    let best = null, bd = Infinity;
+    for (const t of targets) { const d2 = Math.abs(t - (cur + delta)); if (d2 < bd) { bd = d2; best = t; } }
     if (best === cur) return null;
     return best;
   },
@@ -198,7 +207,7 @@ const input = new Input(canvas, {
   onTapCell(carId, cell) {
     if (!game) return;
     const car = game.level.cars.find(c => c.id === carId);
-    const isH = car.dir === 'h';
+    const isH = (game.state.cars[carId].dir || car.dir) === 'h';
     const cur = game.state.cars[carId][isH ? 'x' : 'y'];
     const t = isH
       ? (cell.x > cur ? cell.x - car.len + 1 : cell.x)
@@ -215,9 +224,10 @@ function hitCar(cx, cy) {
   const grid = new Map();
   for (const c of g.level.cars) {
     const p = g.state.cars[c.id];
+    const dir = p.dir || c.dir;
     for (let i = 0; i < c.len; i++) {
-      const x = c.dir === 'h' ? p.x + i : p.x;
-      const y = c.dir === 'v' ? p.y + i : p.y;
+      const x = dir === 'h' ? p.x + i : p.x;
+      const y = dir === 'v' ? p.y + i : p.y;
       grid.set(x + ',' + y, c);
     }
   }
@@ -297,7 +307,7 @@ function frame(t) {
       now: t,
     };
     renderer.draw(game.level, game.state, view, dt);
-    if (game.dragPreview) {
+    if (game.dragPreview && typeof game.dragPreview.target === 'number') {
       const ctx = renderer.ctx;
       const car = game.level.cars.find(c => c.id === game.dragPreview.carId);
       const isH = car.dir === 'h';
@@ -315,6 +325,13 @@ function frame(t) {
 
 showTitle();
 requestAnimationFrame(frame);
+
+// ?level=N 直达某关（试玩/测试用）
+const ql = new URLSearchParams(location.search).get('level');
+if (ql) {
+  const def = LEVELS.find(l => l.id === Number(ql)) || DAILY.find(l => l.id === Number(ql));
+  if (def) startLevel(def);
+}
 
 // 调试钩子（仅 ?debug=1 时暴露）：自动化测试用
 if (location.search.includes('debug=1')) {

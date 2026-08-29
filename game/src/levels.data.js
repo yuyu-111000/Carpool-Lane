@@ -58,6 +58,7 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 2,
   "narrowness": 3
  },
@@ -119,6 +120,7 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 2,
   "narrowness": 3
  },
@@ -187,6 +189,7 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 2,
   "narrowness": 3
  },
@@ -248,6 +251,7 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 2,
   "narrowness": 3
  },
@@ -316,6 +320,7 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 2,
   "narrowness": 2
  },
@@ -377,6 +382,7 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 3,
   "narrowness": 6
  },
@@ -438,6 +444,7 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 3,
   "narrowness": 12
  },
@@ -506,6 +513,7 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 2,
   "narrowness": 2
  },
@@ -567,25 +575,26 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 3,
   "narrowness": 4
  },
  {
   "id": 10,
   "chapter": 1,
-  "name": "小区窄巷 · 巷尾冲刺",
+  "name": "小区窄巷 · 大关",
   "quote": "班车别挤我！",
-  "w": 6,
-  "h": 6,
+  "w": 7,
+  "h": 7,
   "exit": {
-   "x": 6,
-   "y": 2
+   "x": 7,
+   "y": 3
   },
   "cars": [
    {
     "id": "R",
-    "x": 1,
-    "y": 2,
+    "x": 0,
+    "y": 3,
     "len": 2,
     "dir": "h",
     "role": "hero"
@@ -593,50 +602,106 @@ export const LEVELS = [
    {
     "id": "c1",
     "x": 5,
-    "y": 3,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
     "x": 4,
-    "y": 1,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 3,
-    "y": 0,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 3,
+    "x": 2,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 1,
-    "y": 0,
+    "x": 6,
+    "y": 2,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c6",
+    "x": 1,
+    "y": 1,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 2,
+    "y": 6,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
     "x": 0,
-    "y": 3,
-    "len": 2,
+    "y": 4,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c9",
+    "x": 3,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 4,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c11",
+    "x": 1,
+    "y": 4,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c12",
+    "x": 4,
+    "y": 4,
+    "len": 3,
     "dir": "h"
    }
   ],
   "pickups": [],
-  "walls": [],
-  "par": 3,
-  "narrowness": 12
+  "walls": [
+   {
+    "x": 1,
+    "y": 0
+   },
+   {
+    "x": 0,
+    "y": 0
+   },
+   {
+    "x": 0,
+    "y": 2
+   }
+  ],
+  "turn": false,
+  "par": 8,
+  "narrowness": null
  },
  {
   "id": 11,
@@ -652,7 +717,7 @@ export const LEVELS = [
   "cars": [
    {
     "id": "R",
-    "x": 0,
+    "x": 1,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -667,64 +732,65 @@ export const LEVELS = [
    },
    {
     "id": "c2",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
     "x": 3,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c3",
-    "x": 4,
-    "y": 0,
+    "id": "c4",
+    "x": 0,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c4",
-    "x": 0,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
     "id": "c5",
     "x": 1,
-    "y": 0,
+    "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
     "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 3,
     "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c7",
-    "x": 0,
-    "y": 1,
-    "len": 3,
-    "dir": "h"
-   },
-   {
     "id": "c8",
     "x": 0,
-    "y": 4,
-    "len": 2,
+    "y": 3,
+    "len": 3,
     "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 3
+    "x": 5,
+    "y": 1
    }
   ],
   "walls": [],
-  "par": 3,
-  "narrowness": 6
+  "turn": true,
+  "par": 4,
+  "narrowness": null
  },
  {
   "id": 12,
@@ -748,71 +814,65 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 3,
-    "y": 3,
+    "x": 5,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
-    "y": 2,
+    "x": 3,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 4,
-    "y": 2,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 1,
+    "x": 4,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 3,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 0,
     "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
-    "x": 2,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c6",
+    "id": "c7",
     "x": 0,
     "y": 4,
     "len": 2,
     "dir": "v"
-   },
-   {
-    "id": "c7",
-    "x": 2,
-    "y": 3,
-    "len": 3,
-    "dir": "v"
-   },
-   {
-    "id": "c8",
-    "x": 3,
-    "y": 5,
-    "len": 3,
-    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1
+    "x": 2,
+    "y": 0
    }
   ],
   "walls": [],
-  "par": 4,
-  "narrowness": 12
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 13,
@@ -828,7 +888,7 @@ export const LEVELS = [
   "cars": [
    {
     "id": "R",
-    "x": 1,
+    "x": 0,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -836,28 +896,28 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 2,
+    "x": 4,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 3,
+    "x": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 2,
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 0,
+    "x": 3,
     "y": 4,
     "len": 2,
     "dir": "v"
@@ -867,40 +927,34 @@ export const LEVELS = [
     "x": 1,
     "y": 4,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c6",
-    "x": 3,
-    "y": 1,
+    "x": 2,
+    "y": 3,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 3,
+    "x": 4,
     "y": 4,
     "len": 2,
     "dir": "v"
-   },
-   {
-    "id": "c8",
-    "x": 0,
-    "y": 3,
-    "len": 3,
-    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
     "x": 5,
-    "y": 1
+    "y": 5
    }
   ],
   "walls": [],
-  "par": 4,
-  "narrowness": 12
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 14,
@@ -924,64 +978,72 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 4,
-    "y": 1,
+    "x": 3,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 2,
-    "y": 0,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 5,
-    "y": 0,
+    "x": 4,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 3,
-    "y": 4,
+    "x": 1,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 1,
-    "y": 4,
+    "x": 2,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c6",
-    "x": 2,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 4,
+    "x": 0,
     "y": 4,
     "len": 2,
     "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 2,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
     "x": 5,
-    "y": 3
+    "y": 1
    }
   ],
   "walls": [],
-  "par": 2,
-  "narrowness": 1
+  "turn": true,
+  "par": 4,
+  "narrowness": null
  },
  {
   "id": 15,
@@ -1005,29 +1067,29 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
+    "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 3,
+    "x": 5,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 4,
-    "y": 3,
+    "x": 3,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 4,
-    "y": 5,
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
@@ -1040,29 +1102,42 @@ export const LEVELS = [
    },
    {
     "id": "c6",
-    "x": 0,
-    "y": 0,
+    "x": 3,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 1,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c7",
-    "x": 0,
+    "id": "c8",
+    "x": 3,
     "y": 4,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
-    "y": 1
+    "x": 0,
+    "y": 4
    }
   ],
-  "walls": [],
-  "par": 4,
-  "narrowness": 18
+  "walls": [
+   {
+    "x": 5,
+    "y": 4
+   }
+  ],
+  "turn": true,
+  "par": 7,
+  "narrowness": null
  },
  {
   "id": 16,
@@ -1086,69 +1161,77 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
-    "y": 2,
+    "x": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
     "x": 5,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c3",
-    "x": 3,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
     "id": "c4",
-    "x": 0,
-    "y": 1,
+    "x": 1,
+    "y": 3,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c5",
-    "x": 3,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 2,
+    "x": 5,
     "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c7",
-    "x": 2,
-    "y": 1,
+    "id": "c6",
+    "x": 0,
+    "y": 5,
     "len": 2,
     "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 3
+    "x": 5,
+    "y": 0
    }
   ],
   "walls": [
    {
     "x": 0,
-    "y": 3
+    "y": 4
    }
   ],
-  "par": 4,
-  "narrowness": 15
+  "turn": true,
+  "par": 7,
+  "narrowness": null
  },
  {
   "id": 17,
@@ -1172,69 +1255,65 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 3,
-    "y": 0,
+    "x": 5,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
+    "x": 3,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
     "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c3",
-    "x": 2,
+    "id": "c4",
+    "x": 0,
     "y": 1,
-    "len": 2,
-    "dir": "v"
+    "len": 3,
+    "dir": "h"
    },
    {
-    "id": "c4",
+    "id": "c5",
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
     "x": 5,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
-    "x": 0,
-    "y": 1,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 2,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
-   },
-   {
     "id": "c7",
     "x": 1,
     "y": 3,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
-    "y": 3
-   }
-  ],
-  "walls": [
-   {
     "x": 0,
-    "y": 3
+    "y": 5
    }
   ],
-  "par": 5,
-  "narrowness": 216
+  "walls": [],
+  "turn": true,
+  "par": 7,
+  "narrowness": null
  },
  {
   "id": 18,
@@ -1258,8 +1337,8 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 3,
+    "x": 4,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
@@ -1272,57 +1351,63 @@ export const LEVELS = [
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 0,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 2,
-    "y": 4,
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c5",
-    "x": 4,
-    "y": 1,
-    "len": 2,
+    "x": 0,
+    "y": 3,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c6",
     "x": 4,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c7",
-    "x": 0,
-    "y": 3,
+    "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 0,
+    "id": "c7",
+    "x": 2,
     "y": 4,
     "len": 2,
     "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
+    "x": 3,
+    "y": 1
+   }
+  ],
+  "walls": [
+   {
+    "x": 4,
     "y": 3
    }
   ],
-  "walls": [],
-  "par": 3,
-  "narrowness": 2
+  "turn": true,
+  "par": 4,
+  "narrowness": null
  },
  {
   "id": 19,
@@ -1354,42 +1439,49 @@ export const LEVELS = [
    {
     "id": "c2",
     "x": 3,
-    "y": 3,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 1,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
     "x": 4,
     "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c5",
-    "x": 0,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
     "id": "c6",
-    "x": 2,
-    "y": 0,
+    "x": 1,
+    "y": 5,
     "len": 3,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 0,
-    "y": 5,
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 2,
+    "y": 0,
     "len": 2,
     "dir": "h"
    }
@@ -1398,17 +1490,13 @@ export const LEVELS = [
    {
     "id": "p1",
     "x": 5,
-    "y": 1
-   }
-  ],
-  "walls": [
-   {
-    "x": 5,
     "y": 5
    }
   ],
-  "par": 6,
-  "narrowness": 96
+  "walls": [],
+  "turn": true,
+  "par": 9,
+  "narrowness": null
  },
  {
   "id": 20,
@@ -1432,76 +1520,77 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 4,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c2",
     "x": 3,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c2",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
     "id": "c3",
-    "x": 2,
+    "x": 5,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 4,
-    "y": 0,
+    "x": 5,
+    "y": 4,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c5",
-    "x": 0,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 0,
+    "x": 3,
     "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c7",
-    "x": 1,
+    "id": "c6",
+    "x": 3,
     "y": 5,
-    "len": 3,
+    "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 2,
+    "id": "c7",
+    "x": 0,
     "y": 0,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
     "x": 5,
-    "y": 3
+    "y": 0
    }
   ],
   "walls": [
    {
-    "x": 4,
-    "y": 4
+    "x": 0,
+    "y": 5
    }
   ],
-  "par": 6,
-  "narrowness": 20
+  "turn": true,
+  "par": 9,
+  "narrowness": null
  },
  {
   "id": 21,
@@ -1526,14 +1615,14 @@ export const LEVELS = [
    {
     "id": "c1",
     "x": 4,
-    "y": 0,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
-    "y": 1,
+    "x": 3,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
@@ -1546,36 +1635,36 @@ export const LEVELS = [
    },
    {
     "id": "c4",
-    "x": 3,
+    "x": 0,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 1,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c6",
-    "x": 1,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
     "x": 5,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c8",
+    "id": "c6",
     "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
     "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 5,
     "len": 2,
     "dir": "h"
    }
@@ -1583,18 +1672,19 @@ export const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 3
+    "x": 3,
+    "y": 0
    }
   ],
   "walls": [
    {
-    "x": 3,
-    "y": 1
+    "x": 1,
+    "y": 4
    }
   ],
-  "par": 4,
-  "narrowness": 9
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 22,
@@ -1618,8 +1708,8 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
-    "y": 2,
+    "x": 5,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
@@ -1632,69 +1722,63 @@ export const LEVELS = [
    },
    {
     "id": "c3",
-    "x": 5,
-    "y": 3,
+    "x": 4,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 3,
-    "y": 0,
+    "x": 2,
+    "y": 4,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c5",
     "x": 0,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 2,
-    "y": 4,
+    "y": 0,
     "len": 3,
     "dir": "h"
    },
    {
-    "id": "c7",
-    "x": 0,
-    "y": 1,
+    "id": "c6",
+    "x": 1,
+    "y": 4,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
    },
    {
     "id": "c8",
-    "x": 1,
-    "y": 5,
+    "x": 3,
+    "y": 4,
     "len": 2,
     "dir": "h"
-   },
-   {
-    "id": "c9",
-    "x": 5,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 1
+    "x": 5,
+    "y": 0
    }
   ],
   "walls": [
    {
-    "x": 3,
-    "y": 3
+    "x": 4,
+    "y": 5
    }
   ],
-  "par": 4,
-  "narrowness": 2
+  "turn": true,
+  "par": 7,
+  "narrowness": null
  },
  {
   "id": 23,
@@ -1718,21 +1802,21 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 4,
+    "x": 5,
     "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 2,
-    "y": 1,
+    "x": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
+    "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
@@ -1740,35 +1824,42 @@ export const LEVELS = [
    {
     "id": "c4",
     "x": 0,
-    "y": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
     "x": 4,
-    "y": 3,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c6",
-    "x": 4,
-    "y": 5,
+    "x": 2,
+    "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 2,
+    "x": 0,
     "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 5,
-    "y": 1,
+    "id": "c9",
+    "x": 1,
+    "y": 4,
     "len": 2,
     "dir": "v"
    }
@@ -1776,18 +1867,19 @@ export const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 3
+    "x": 4,
+    "y": 0
    }
   ],
   "walls": [
    {
-    "x": 0,
-    "y": 1
+    "x": 5,
+    "y": 5
    }
   ],
-  "par": 4,
-  "narrowness": 6
+  "turn": true,
+  "par": 7,
+  "narrowness": null
  },
  {
   "id": 24,
@@ -1811,57 +1903,57 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c2",
-    "x": 3,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c3",
     "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c4",
-    "x": 2,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c5",
-    "x": 0,
+    "id": "c2",
+    "x": 5,
     "y": 0,
     "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 1,
-    "y": 3,
-    "len": 2,
     "dir": "v"
    },
    {
-    "id": "c7",
+    "id": "c3",
     "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c8",
+    "id": "c4",
     "x": 3,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 1,
     "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 5,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 0,
     "len": 2,
     "dir": "h"
    }
@@ -1869,18 +1961,19 @@ export const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1
+    "x": 4,
+    "y": 4
    }
   ],
   "walls": [
    {
-    "x": 4,
-    "y": 5
+    "x": 3,
+    "y": 1
    }
   ],
-  "par": 3,
-  "narrowness": 2
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 25,
@@ -1904,64 +1997,64 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 4,
+    "x": 3,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
-    "y": 1,
+    "x": 4,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 0,
-    "y": 4,
-    "len": 3,
-    "dir": "h"
-   },
-   {
-    "id": "c5",
-    "x": 5,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c6",
-    "x": 1,
+    "x": 2,
     "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c7",
-    "x": 0,
-    "y": 3,
+    "id": "c4",
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 3,
+    "y": 0,
     "len": 3,
     "dir": "h"
    },
    {
+    "id": "c6",
+    "x": 0,
+    "y": 5,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
     "id": "c8",
-    "x": 2,
-    "y": 1,
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c9",
-    "x": 3,
-    "y": 3,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    }
@@ -1969,18 +2062,19 @@ export const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 1
+    "x": 5,
+    "y": 4
    }
   ],
   "walls": [
    {
-    "x": 4,
+    "x": 5,
     "y": 5
    }
   ],
-  "par": 4,
-  "narrowness": 6
+  "turn": true,
+  "par": 8,
+  "narrowness": null
  },
  {
   "id": 26,
@@ -2012,14 +2106,14 @@ export const LEVELS = [
    {
     "id": "c2",
     "x": 5,
-    "y": 1,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 3,
-    "y": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
@@ -2027,53 +2121,54 @@ export const LEVELS = [
     "id": "c4",
     "x": 4,
     "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c5",
-    "x": 0,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 5,
-    "y": 3,
     "len": 3,
     "dir": "v"
    },
    {
+    "id": "c5",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
     "id": "c7",
-    "x": 0,
+    "x": 5,
     "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c8",
-    "x": 1,
-    "y": 4,
+    "x": 3,
+    "y": 5,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 3,
-    "y": 1
+    "x": 2,
+    "y": 0
    }
   ],
   "walls": [
    {
-    "x": 2,
-    "y": 4
+    "x": 5,
+    "y": 5
    }
   ],
-  "par": 5,
-  "narrowness": 32
+  "turn": true,
+  "par": 8,
+  "narrowness": null
  },
  {
   "id": 27,
@@ -2097,7 +2192,7 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 4,
+    "x": 3,
     "y": 1,
     "len": 2,
     "dir": "v"
@@ -2111,50 +2206,50 @@ export const LEVELS = [
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 2,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 0,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c5",
-    "x": 0,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 4,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
     "x": 5,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c8",
+    "id": "c4",
     "x": 2,
     "y": 0,
     "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 3,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 1,
+    "y": 5,
+    "len": 3,
     "dir": "h"
    },
    {
+    "id": "c8",
+    "x": 5,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
     "id": "c9",
-    "x": 4,
-    "y": 3,
+    "x": 3,
+    "y": 0,
     "len": 2,
     "dir": "h"
    }
@@ -2162,18 +2257,19 @@ export const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
-    "y": 1
+    "x": 4,
+    "y": 2
    }
   ],
   "walls": [
    {
-    "x": 0,
+    "x": 1,
     "y": 0
    }
   ],
-  "par": 5,
-  "narrowness": 72
+  "turn": true,
+  "par": 9,
+  "narrowness": null
  },
  {
   "id": 28,
@@ -2189,7 +2285,7 @@ export const LEVELS = [
   "cars": [
    {
     "id": "R",
-    "x": 0,
+    "x": 2,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -2198,37 +2294,37 @@ export const LEVELS = [
    {
     "id": "c1",
     "x": 3,
-    "y": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 0,
+    "x": 5,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 2,
-    "y": 1,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 1,
-    "y": 4,
-    "len": 2,
+    "x": 3,
+    "y": 3,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c5",
     "x": 1,
     "y": 0,
-    "len": 3,
-    "dir": "h"
+    "len": 2,
+    "dir": "v"
    },
    {
     "id": "c6",
@@ -2239,21 +2335,14 @@ export const LEVELS = [
    },
    {
     "id": "c7",
-    "x": 0,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c8",
-    "x": 0,
-    "y": 0,
+    "x": 3,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c9",
-    "x": 4,
+    "id": "c8",
+    "x": 0,
     "y": 3,
     "len": 2,
     "dir": "h"
@@ -2263,17 +2352,18 @@ export const LEVELS = [
    {
     "id": "p1",
     "x": 5,
-    "y": 1
+    "y": 4
    }
   ],
   "walls": [
    {
-    "x": 5,
-    "y": 5
+    "x": 4,
+    "y": 0
    }
   ],
-  "par": 3,
-  "narrowness": 1
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 29,
@@ -2297,7 +2387,7 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
+    "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
@@ -2305,114 +2395,108 @@ export const LEVELS = [
    {
     "id": "c2",
     "x": 4,
-    "y": 1,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 3,
-    "y": 3,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
     "x": 1,
-    "y": 5,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c5",
-    "x": 3,
-    "y": 5,
+    "x": 4,
+    "y": 4,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c6",
-    "x": 1,
-    "y": 3,
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c7",
     "x": 2,
-    "y": 1,
-    "len": 2,
+    "y": 3,
+    "len": 3,
     "dir": "v"
    },
    {
     "id": "c8",
     "x": 0,
-    "y": 4,
+    "y": 0,
     "len": 2,
     "dir": "v"
-   },
-   {
-    "id": "c9",
-    "x": 4,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 3,
-    "y": 1
+    "x": 5,
+    "y": 5
    }
   ],
   "walls": [
    {
-    "x": 0,
-    "y": 1
+    "x": 1,
+    "y": 4
    }
   ],
-  "par": 5,
-  "narrowness": 40
+  "turn": true,
+  "par": 11,
+  "narrowness": null
  },
  {
   "id": 30,
   "chapter": 3,
-  "name": "写字楼 · 顶流",
+  "name": "写字楼 · 大关",
   "quote": "油门当刹车？不存在的。",
-  "w": 6,
-  "h": 6,
+  "w": 7,
+  "h": 7,
   "exit": {
-   "x": 6,
-   "y": 2
+   "x": 7,
+   "y": 3
   },
   "cars": [
    {
     "id": "R",
-    "x": 1,
-    "y": 2,
+    "x": 0,
+    "y": 3,
     "len": 2,
     "dir": "h",
     "role": "hero"
    },
    {
     "id": "c1",
-    "x": 4,
-    "y": 1,
+    "x": 6,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 2,
-    "y": 3,
+    "x": 4,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 2,
+    "x": 2,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
@@ -2420,60 +2504,83 @@ export const LEVELS = [
     "id": "c4",
     "x": 5,
     "y": 3,
-    "len": 3,
+    "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
     "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 3,
+    "y": 5,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
     "y": 0,
     "len": 3,
     "dir": "h"
    },
    {
-    "id": "c6",
+    "id": "c8",
+    "x": 2,
+    "y": 6,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 3,
+    "y": 1,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
     "x": 0,
-    "y": 3,
+    "y": 4,
     "len": 3,
     "dir": "v"
    },
    {
-    "id": "c7",
-    "x": 3,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c8",
-    "x": 5,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c9",
-    "x": 2,
-    "y": 5,
-    "len": 2,
+    "id": "c11",
+    "x": 4,
+    "y": 0,
+    "len": 3,
     "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 0,
-    "y": 1
+    "x": 2,
+    "y": 2
    }
   ],
   "walls": [
    {
-    "x": 4,
-    "y": 3
+    "x": 1,
+    "y": 1
+   },
+   {
+    "x": 6,
+    "y": 4
+   },
+   {
+    "x": 1,
+    "y": 4
    }
   ],
-  "par": 6,
-  "narrowness": 30
+  "turn": false,
+  "par": 16,
+  "narrowness": null
  },
  {
   "id": 31,
@@ -2497,21 +2604,21 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 2,
+    "x": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
     "x": 4,
-    "y": 1,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
+    "x": 5,
     "y": 3,
     "len": 2,
     "dir": "v"
@@ -2519,49 +2626,56 @@ export const LEVELS = [
    {
     "id": "c4",
     "x": 3,
-    "y": 3,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
     "x": 1,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
+    "y": 5,
+    "len": 3,
+    "dir": "h"
    },
    {
     "id": "c6",
-    "x": 1,
+    "x": 0,
     "y": 0,
-    "len": 3,
-    "dir": "h"
+    "len": 2,
+    "dir": "v"
    },
    {
     "id": "c7",
     "x": 4,
     "y": 0,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c8",
-    "x": 0,
-    "y": 3,
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c9",
-    "x": 1,
-    "y": 1,
-    "len": 2,
-    "dir": "h"
+    "id": "c10",
+    "x": 0,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
    },
    {
-    "id": "c10",
-    "x": 4,
-    "y": 5,
+    "id": "c11",
+    "x": 2,
+    "y": 3,
     "len": 2,
     "dir": "h"
    }
@@ -2569,25 +2683,30 @@ export const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1,
+    "x": 1,
+    "y": 4,
     "order": 1
    },
    {
     "id": "p2",
     "x": 3,
-    "y": 1,
+    "y": 0,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 2,
+    "x": 1,
+    "y": 0
+   },
+   {
+    "x": 4,
     "y": 5
    }
   ],
-  "par": 5,
-  "narrowness": 4
+  "turn": true,
+  "par": 10,
+  "narrowness": null
  },
  {
   "id": 32,
@@ -2612,68 +2731,75 @@ export const LEVELS = [
    {
     "id": "c1",
     "x": 3,
-    "y": 4,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
     "x": 5,
-    "y": 1,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
+    "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 4,
+    "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 0,
+    "x": 3,
     "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 1,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 1,
+    "x": 0,
     "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
+    "id": "c7",
+    "x": 2,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
     "id": "c8",
-    "x": 1,
-    "y": 1,
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c9",
     "x": 0,
-    "y": 3,
-    "len": 3,
-    "dir": "v"
+    "y": 1,
+    "len": 2,
+    "dir": "h"
    },
    {
     "id": "c10",
+    "x": 2,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c11",
     "x": 4,
     "y": 5,
     "len": 2,
@@ -2683,29 +2809,30 @@ export const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 3,
+    "x": 4,
+    "y": 4,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 4,
-    "y": 3,
+    "x": 5,
+    "y": 4,
     "order": 2
    }
   ],
   "walls": [
    {
     "x": 5,
-    "y": 4
+    "y": 0
    },
    {
-    "x": 4,
-    "y": 4
+    "x": 1,
+    "y": 5
    }
   ],
-  "par": 5,
-  "narrowness": 12
+  "turn": true,
+  "par": 12,
+  "narrowness": null
  },
  {
   "id": 33,
@@ -2729,94 +2856,102 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 4,
+    "x": 5,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
+    "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 0,
+    "x": 4,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 2,
+    "x": 3,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 1,
+    "x": 0,
     "y": 3,
-    "len": 2,
+    "len": 3,
     "dir": "v"
    },
    {
     "id": "c6",
-    "x": 3,
-    "y": 5,
-    "len": 3,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 3,
+    "x": 1,
     "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
+    "id": "c7",
     "x": 5,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c8",
+    "x": 3,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
     "id": "c9",
+    "x": 1,
+    "y": 5,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
     "x": 0,
-    "y": 3,
+    "y": 1,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
+    "x": 2,
     "y": 3,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 2,
-    "y": 1,
+    "x": 1,
+    "y": 0,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 1,
-    "y": 1
+    "x": 4,
+    "y": 4
    },
    {
-    "x": 2,
-    "y": 0
+    "x": 5,
+    "y": 5
    }
   ],
-  "par": 6,
-  "narrowness": 64
+  "turn": true,
+  "par": 13,
+  "narrowness": null
  },
  {
   "id": 34,
@@ -2840,90 +2975,102 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c2",
-    "x": 4,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c3",
-    "x": 5,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
     "x": 3,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
-    "x": 0,
+    "id": "c2",
+    "x": 5,
     "y": 0,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
-    "id": "c6",
+    "id": "c3",
     "x": 2,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c7",
-    "x": 0,
-    "y": 4,
+    "id": "c4",
+    "x": 4,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c5",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 1,
+    "len": 3,
+    "dir": "h"
+   },
+   {
     "id": "c8",
-    "x": 1,
+    "x": 4,
     "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c9",
-    "x": 3,
-    "y": 0,
+    "x": 0,
+    "y": 3,
     "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 0,
+    "y": 0,
+    "len": 3,
     "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 1,
+    "x": 3,
+    "y": 4,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 4,
-    "y": 3,
+    "x": 5,
+    "y": 2,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 3,
-    "y": 1
+    "x": 0,
+    "y": 4
+   },
+   {
+    "x": 2,
+    "y": 5
    }
   ],
-  "par": 3,
-  "narrowness": 4
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 35,
@@ -2939,7 +3086,7 @@ export const LEVELS = [
   "cars": [
    {
     "id": "R",
-    "x": 0,
+    "x": 1,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -2947,14 +3094,14 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 3,
-    "y": 2,
+    "x": 4,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 2,
+    "x": 3,
     "y": 1,
     "len": 2,
     "dir": "v"
@@ -2962,49 +3109,56 @@ export const LEVELS = [
    {
     "id": "c3",
     "x": 5,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
-    "x": 0,
-    "y": 3,
+    "id": "c4",
+    "x": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c5",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
     "id": "c6",
-    "x": 2,
-    "y": 5,
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 3,
+    "y": 0,
     "len": 3,
     "dir": "h"
    },
    {
-    "id": "c7",
-    "x": 0,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
     "id": "c8",
-    "x": 2,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
+    "x": 4,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
    },
    {
     "id": "c9",
-    "x": 2,
-    "y": 3,
+    "x": 0,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 5,
+    "y": 4,
     "len": 2,
     "dir": "v"
    }
@@ -3012,25 +3166,30 @@ export const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1,
+    "x": 2,
+    "y": 4,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 3,
-    "y": 1,
+    "x": 1,
+    "y": 4,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 4,
-    "y": 1
+    "x": 3,
+    "y": 3
+   },
+   {
+    "x": 3,
+    "y": 5
    }
   ],
-  "par": 7,
-  "narrowness": 48
+  "turn": true,
+  "par": 13,
+  "narrowness": null
  },
  {
   "id": 36,
@@ -3054,71 +3213,78 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 2,
+    "x": 2,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 2,
+    "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 1,
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 4,
+    "x": 3,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 3,
+    "x": 1,
     "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 2,
+    "x": 4,
     "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c7",
-    "x": 0,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c8",
     "x": 1,
     "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c9",
+    "id": "c8",
     "x": 1,
     "y": 3,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c10",
-    "x": 4,
-    "y": 0,
+    "x": 5,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c11",
+    "x": 1,
+    "y": 4,
     "len": 2,
     "dir": "h"
    }
@@ -3126,25 +3292,30 @@ export const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1,
+    "x": 3,
+    "y": 4,
     "order": 1
    },
    {
     "id": "p2",
     "x": 3,
-    "y": 3,
+    "y": 5,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 1,
-    "y": 1
+    "x": 0,
+    "y": 4
+   },
+   {
+    "x": 5,
+    "y": 5
    }
   ],
-  "par": 8,
-  "narrowness": 240
+  "turn": true,
+  "par": 15,
+  "narrowness": null
  },
  {
   "id": 37,
@@ -3168,64 +3339,78 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
+    "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 4,
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 1,
+    "x": 4,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
     "x": 3,
-    "y": 1,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 2,
+    "x": 3,
     "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
     "x": 5,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c9",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 2,
     "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c7",
-    "x": 4,
+    "id": "c11",
+    "x": 2,
     "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c8",
-    "x": 0,
-    "y": 1,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c9",
-    "x": 0,
-    "y": 3,
     "len": 2,
     "dir": "h"
    }
@@ -3233,25 +3418,30 @@ export const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 1,
+    "x": 2,
+    "y": 3,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 2,
-    "y": 3,
+    "x": 0,
+    "y": 0,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 1,
-    "y": 0
+    "x": 4,
+    "y": 5
+   },
+   {
+    "x": 0,
+    "y": 5
    }
   ],
-  "par": 8,
-  "narrowness": 500
+  "turn": true,
+  "par": 17,
+  "narrowness": null
  },
  {
   "id": 38,
@@ -3275,45 +3465,45 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 3,
+    "x": 4,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
     "x": 2,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c3",
-    "x": 4,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 3,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
-    "x": 0,
+    "id": "c3",
+    "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 5,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c6",
+    "id": "c5",
     "x": 3,
-    "y": 0,
+    "y": 4,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 2,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
    },
    {
     "id": "c7",
@@ -3331,41 +3521,46 @@ export const LEVELS = [
    },
    {
     "id": "c9",
-    "x": 3,
+    "x": 4,
     "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c10",
-    "x": 5,
-    "y": 0,
+    "x": 2,
+    "y": 5,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 3,
+    "x": 2,
+    "y": 1,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 2,
+    "x": 5,
     "y": 1,
     "order": 2
    }
   ],
   "walls": [
    {
+    "x": 0,
+    "y": 0
+   },
+   {
     "x": 4,
-    "y": 4
+    "y": 3
    }
   ],
-  "par": 4,
-  "narrowness": 4
+  "turn": true,
+  "par": 7,
+  "narrowness": null
  },
  {
   "id": 39,
@@ -3389,7 +3584,7 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 3,
+    "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
@@ -3397,56 +3592,63 @@ export const LEVELS = [
    {
     "id": "c2",
     "x": 5,
-    "y": 3,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 4,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
     "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
+    "id": "c4",
     "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 1,
     "y": 4,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c6",
-    "x": 1,
+    "x": 3,
     "y": 5,
-    "len": 2,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 4,
-    "y": 0,
+    "x": 3,
+    "y": 3,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c8",
-    "x": 1,
+    "x": 3,
     "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c9",
-    "x": 1,
-    "y": 3,
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c10",
+    "x": 4,
+    "y": 4,
     "len": 2,
     "dir": "h"
    }
@@ -3454,14 +3656,140 @@ export const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 3,
+    "x": 2,
+    "y": 5,
     "order": 1
    },
    {
     "id": "p2",
     "x": 5,
+    "y": 0,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 5,
+    "y": 1
+   },
+   {
+    "x": 0,
+    "y": 3
+   }
+  ],
+  "turn": true,
+  "par": 17,
+  "narrowness": null
+ },
+ {
+  "id": 40,
+  "chapter": 4,
+  "name": "商场卸货区 · 大关",
+  "quote": "班车别挤我！",
+  "w": 7,
+  "h": 7,
+  "exit": {
+   "x": 7,
+   "y": 3
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 5,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 6,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 2,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 6,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 2,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 6,
+    "y": 0,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c9",
+    "x": 2,
     "y": 1,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 0,
+    "y": 0,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c11",
+    "x": 5,
+    "y": 4,
+    "len": 3,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 2,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 3,
+    "y": 4,
     "order": 2
    }
   ],
@@ -3469,124 +3797,19 @@ export const LEVELS = [
    {
     "x": 1,
     "y": 1
-   }
-  ],
-  "par": 8,
-  "narrowness": 350
- },
- {
-  "id": 40,
-  "chapter": 4,
-  "name": "商场卸货区 · 双乘客",
-  "quote": "班车别挤我！",
-  "w": 6,
-  "h": 6,
-  "exit": {
-   "x": 6,
-   "y": 2
-  },
-  "cars": [
-   {
-    "id": "R",
-    "x": 0,
-    "y": 2,
-    "len": 2,
-    "dir": "h",
-    "role": "hero"
    },
    {
-    "id": "c1",
     "x": 3,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
+    "y": 0
    },
    {
-    "id": "c2",
-    "x": 5,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c3",
     "x": 4,
-    "y": 2,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 2,
-    "y": 2,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c5",
-    "x": 0,
-    "y": 1,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 3,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 4,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c8",
-    "x": 1,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c9",
-    "x": 3,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c10",
-    "x": 0,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
+    "y": 2
    }
   ],
-  "pickups": [
-   {
-    "id": "p1",
-    "x": 2,
-    "y": 1,
-    "order": 1
-   },
-   {
-    "id": "p2",
-    "x": 5,
-    "y": 1,
-    "order": 2
-   }
-  ],
-  "walls": [
-   {
-    "x": 1,
-    "y": 5
-   }
-  ],
-  "par": 9,
-  "narrowness": 84
+  "turn": false,
+  "par": 24,
+  "narrowness": null
  },
  {
   "id": 41,
@@ -3624,15 +3847,15 @@ export const LEVELS = [
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 1,
+    "x": 4,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 4,
-    "y": 0,
+    "x": 2,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
@@ -3640,39 +3863,46 @@ export const LEVELS = [
     "id": "c5",
     "x": 1,
     "y": 3,
-    "len": 2,
-    "dir": "v"
+    "len": 3,
+    "dir": "h"
    },
    {
     "id": "c6",
-    "x": 3,
+    "x": 1,
     "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c7",
-    "x": 0,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c8",
-    "x": 1,
+    "x": 4,
     "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
+    "id": "c8",
+    "x": 3,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
     "id": "c9",
-    "x": 4,
-    "y": 4,
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c10",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c11",
     "x": 5,
     "y": 4,
     "len": 2,
@@ -3682,29 +3912,30 @@ export const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
-    "y": 3,
+    "x": 0,
+    "y": 4,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 3,
-    "y": 3,
+    "x": 0,
+    "y": 5,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 2,
-    "y": 4
+    "x": 1,
+    "y": 0
    },
    {
     "x": 1,
     "y": 1
    }
   ],
-  "par": 6,
-  "narrowness": 15
+  "turn": true,
+  "par": 12,
+  "narrowness": null
  },
  {
   "id": 42,
@@ -3728,197 +3959,86 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
+    "x": 3,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
     "x": 5,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c3",
-    "x": 3,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
     "id": "c4",
     "x": 4,
-    "y": 1,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 3,
-    "y": 2,
-    "len": 3,
-    "dir": "v"
-   },
-   {
-    "id": "c6",
     "x": 4,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c7",
-    "x": 1,
     "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
+    "id": "c6",
     "x": 0,
-    "y": 3,
+    "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c9",
-    "x": 1,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c10",
-    "x": 5,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   }
-  ],
-  "pickups": [
-   {
-    "id": "p1",
-    "x": 2,
-    "y": 3,
-    "order": 1
-   },
-   {
-    "id": "p2",
-    "x": 5,
-    "y": 3,
-    "order": 2
-   }
-  ],
-  "walls": [
-   {
-    "x": 0,
-    "y": 0
-   },
-   {
-    "x": 0,
-    "y": 5
-   }
-  ],
-  "par": 6,
-  "narrowness": 100
- },
- {
-  "id": 43,
-  "chapter": 5,
-  "name": "机场高速 · 两位贵宾",
-  "quote": "一把轮的事儿。",
-  "w": 6,
-  "h": 6,
-  "exit": {
-   "x": 6,
-   "y": 2
-  },
-  "cars": [
-   {
-    "id": "R",
-    "x": 0,
-    "y": 2,
-    "len": 2,
-    "dir": "h",
-    "role": "hero"
-   },
-   {
-    "id": "c1",
-    "x": 4,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c2",
-    "x": 5,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c3",
-    "x": 3,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 2,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c5",
-    "x": 0,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c6",
-    "x": 2,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
     "id": "c7",
-    "x": 1,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c8",
     "x": 2,
     "y": 0,
     "len": 3,
     "dir": "h"
    },
    {
-    "id": "c9",
-    "x": 0,
-    "y": 0,
+    "id": "c8",
+    "x": 3,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c10",
-    "x": 5,
-    "y": 3,
+    "id": "c9",
+    "x": 0,
+    "y": 5,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c11",
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 3,
+    "x": 2,
     "y": 1,
     "order": 1
    },
@@ -3935,12 +4055,132 @@ export const LEVELS = [
     "y": 3
    },
    {
-    "x": 1,
-    "y": 5
+    "x": 5,
+    "y": 3
    }
   ],
-  "par": 7,
-  "narrowness": 1
+  "turn": true,
+  "par": 12,
+  "narrowness": null
+ },
+ {
+  "id": 43,
+  "chapter": 5,
+  "name": "机场高速 · 两位贵宾",
+  "quote": "一把轮的事儿。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 3,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 3,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 5,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 0,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 5,
+    "y": 1,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 4,
+    "y": 5
+   },
+   {
+    "x": 4,
+    "y": 4
+   }
+  ],
+  "turn": true,
+  "par": 12,
+  "narrowness": null
  },
  {
   "id": 44,
@@ -3964,85 +4204,99 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
-    "y": 3,
+    "x": 3,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
     "x": 4,
-    "y": 0,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 1,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 5,
-    "y": 1,
+    "x": 2,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 0,
+    "x": 4,
     "y": 0,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    },
    {
     "id": "c6",
     "x": 1,
     "y": 5,
-    "len": 2,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 0,
-    "y": 3,
+    "x": 1,
+    "y": 1,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c8",
-    "x": 3,
+    "x": 0,
     "y": 3,
-    "len": 3,
+    "len": 2,
     "dir": "v"
    },
    {
     "id": "c9",
-    "x": 4,
+    "x": 5,
     "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c10",
-    "x": 5,
-    "y": 3,
-    "len": 3,
+    "x": 0,
+    "y": 0,
+    "len": 2,
     "dir": "v"
+   },
+   {
+    "id": "c11",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c12",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
-    "y": 1,
+    "x": 4,
+    "y": 3,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 4,
+    "x": 3,
     "y": 3,
     "order": 2
    }
@@ -4050,15 +4304,16 @@ export const LEVELS = [
   "walls": [
    {
     "x": 1,
-    "y": 1
+    "y": 0
    },
    {
-    "x": 2,
-    "y": 0
+    "x": 3,
+    "y": 4
    }
   ],
-  "par": 4,
-  "narrowness": 9
+  "turn": true,
+  "par": 8,
+  "narrowness": null
  },
  {
   "id": 45,
@@ -4082,71 +4337,85 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
-    "y": 3,
+    "x": 4,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 1,
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 5,
-    "y": 2,
+    "x": 2,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
     "x": 3,
-    "y": 2,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 3,
-    "y": 0,
-    "len": 3,
+    "x": 4,
+    "y": 5,
+    "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 2,
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
     "y": 5,
     "len": 3,
     "dir": "h"
    },
    {
-    "id": "c7",
-    "x": 1,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
     "id": "c8",
     "x": 0,
-    "y": 0,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c9",
     "x": 0,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 4,
     "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c10",
-    "x": 0,
-    "y": 5,
+    "id": "c11",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c12",
+    "x": 1,
+    "y": 3,
     "len": 2,
     "dir": "h"
    }
@@ -4154,29 +4423,30 @@ export const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
-    "y": 1,
+    "x": 4,
+    "y": 2,
     "order": 1
    },
    {
     "id": "p2",
     "x": 5,
-    "y": 1,
+    "y": 2,
     "order": 2
    }
   ],
   "walls": [
    {
     "x": 3,
-    "y": 1
+    "y": 5
    },
    {
-    "x": 4,
-    "y": 3
+    "x": 1,
+    "y": 1
    }
   ],
-  "par": 7,
-  "narrowness": 24
+  "turn": true,
+  "par": 13,
+  "narrowness": null
  },
  {
   "id": 46,
@@ -4192,7 +4462,7 @@ export const LEVELS = [
   "cars": [
    {
     "id": "R",
-    "x": 0,
+    "x": 2,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -4200,77 +4470,77 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
+    "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
-    "y": 2,
+    "x": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 4,
-    "y": 1,
+    "x": 2,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 3,
+    "x": 5,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 4,
+    "x": 2,
     "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 2,
-    "y": 0,
-    "len": 2,
+    "x": 3,
+    "y": 3,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 3,
-    "y": 3,
+    "x": 0,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c8",
-    "x": 5,
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 2,
     "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c9",
-    "x": 0,
+    "id": "c10",
+    "x": 1,
     "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c10",
-    "x": 0,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
     "id": "c11",
-    "x": 1,
+    "x": 4,
     "y": 4,
     "len": 2,
     "dir": "v"
@@ -4279,29 +4549,30 @@ export const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
+    "x": 1,
     "y": 3,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 2,
-    "y": 3,
+    "x": 5,
+    "y": 4,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 3,
-    "y": 5
+    "x": 0,
+    "y": 4
    },
    {
-    "x": 4,
-    "y": 4
+    "x": 1,
+    "y": 0
    }
   ],
-  "par": 8,
-  "narrowness": 192
+  "turn": true,
+  "par": 16,
+  "narrowness": null
  },
  {
   "id": 47,
@@ -4317,7 +4588,7 @@ export const LEVELS = [
   "cars": [
    {
     "id": "R",
-    "x": 1,
+    "x": 0,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -4325,14 +4596,14 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
-    "y": 0,
+    "x": 5,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
+    "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
@@ -4340,35 +4611,35 @@ export const LEVELS = [
    {
     "id": "c3",
     "x": 3,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
-    "x": 4,
-    "y": 0,
+    "id": "c4",
+    "x": 2,
+    "y": 1,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
-    "id": "c6",
-    "x": 1,
+    "id": "c5",
+    "x": 0,
     "y": 3,
     "len": 2,
     "dir": "h"
    },
    {
+    "id": "c6",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
     "id": "c7",
-    "x": 4,
-    "y": 4,
+    "x": 1,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
@@ -4381,45 +4652,53 @@ export const LEVELS = [
    },
    {
     "id": "c9",
-    "x": 1,
+    "x": 2,
     "y": 5,
-    "len": 2,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c10",
     "x": 0,
-    "y": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
+   },
+   {
+    "id": "c11",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 3,
+    "x": 4,
     "y": 3,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 0,
-    "y": 1,
+    "x": 5,
+    "y": 4,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 5,
-    "y": 5
+    "x": 4,
+    "y": 4
    },
    {
-    "x": 0,
+    "x": 5,
     "y": 5
    }
   ],
-  "par": 8,
-  "narrowness": 6
+  "turn": true,
+  "par": 16,
+  "narrowness": null
  },
  {
   "id": 48,
@@ -4444,21 +4723,21 @@ export const LEVELS = [
    {
     "id": "c1",
     "x": 2,
-    "y": 3,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
     "x": 3,
-    "y": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 5,
-    "y": 0,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
@@ -4471,73 +4750,74 @@ export const LEVELS = [
    },
    {
     "id": "c5",
-    "x": 1,
-    "y": 0,
-    "len": 2,
+    "x": 0,
+    "y": 5,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 0,
-    "y": 1,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 0,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c8",
-    "x": 2,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c9",
     "x": 4,
     "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c10",
-    "x": 0,
-    "y": 5,
+    "id": "c7",
+    "x": 2,
+    "y": 4,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 0,
     "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c10",
+    "x": 3,
+    "y": 5,
+    "len": 3,
     "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 3,
+    "x": 1,
+    "y": 4,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 2,
-    "y": 1,
+    "x": 3,
+    "y": 3,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 1,
-    "y": 4
+    "x": 0,
+    "y": 1
    },
    {
-    "x": 3,
-    "y": 0
+    "x": 5,
+    "y": 4
    }
   ],
-  "par": 5,
-  "narrowness": 8
+  "turn": true,
+  "par": 9,
+  "narrowness": null
  },
  {
   "id": 49,
@@ -4561,15 +4841,15 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
+    "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 2,
-    "y": 1,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
@@ -4582,198 +4862,211 @@ export const LEVELS = [
    },
    {
     "id": "c4",
-    "x": 4,
-    "y": 1,
+    "x": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 2,
+    "x": 1,
     "y": 4,
-    "len": 2,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 2,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 0,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c8",
-    "x": 4,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c9",
-    "x": 4,
+    "x": 1,
     "y": 3,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c10",
-    "x": 1,
-    "y": 4,
+    "id": "c7",
+    "x": 3,
+    "y": 0,
     "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 0,
+    "y": 3,
+    "len": 3,
     "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
-    "y": 3,
+    "x": 5,
+    "y": 5,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 3,
-    "y": 1,
+    "x": 4,
+    "y": 4,
     "order": 2
    }
   ],
   "walls": [
    {
     "x": 5,
-    "y": 5
+    "y": 0
    },
    {
-    "x": 1,
+    "x": 0,
     "y": 0
    }
   ],
-  "par": 10,
-  "narrowness": 6
+  "turn": true,
+  "par": 16,
+  "narrowness": null
  },
  {
   "id": 50,
   "chapter": 5,
-  "name": "机场高速 · 起飞",
+  "name": "机场高速 · 大关",
   "quote": "娃在路边等着呢。",
-  "w": 6,
-  "h": 6,
+  "w": 7,
+  "h": 7,
   "exit": {
-   "x": 6,
-   "y": 2
+   "x": 7,
+   "y": 3
   },
   "cars": [
    {
     "id": "R",
     "x": 0,
-    "y": 2,
+    "y": 3,
     "len": 2,
     "dir": "h",
     "role": "hero"
    },
    {
     "id": "c1",
-    "x": 4,
-    "y": 2,
+    "x": 3,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
-    "y": 2,
+    "x": 6,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 1,
+    "x": 4,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 3,
-    "y": 2,
+    "x": 2,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 3,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 2,
-    "y": 4,
-    "len": 3,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 0,
+    "x": 5,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c8",
-    "x": 1,
-    "y": 3,
-    "len": 2,
+    "id": "c6",
+    "x": 3,
+    "y": 6,
+    "len": 4,
     "dir": "h"
    },
    {
+    "id": "c7",
+    "x": 1,
+    "y": 0,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 2,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   },
+   {
     "id": "c9",
-    "x": 0,
-    "y": 5,
-    "len": 2,
+    "x": 4,
+    "y": 1,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c10",
-    "x": 2,
-    "y": 5,
-    "len": 2,
+    "x": 0,
+    "y": 0,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c11",
+    "x": 4,
+    "y": 0,
+    "len": 3,
     "dir": "h"
+   },
+   {
+    "id": "c12",
+    "x": 1,
+    "y": 4,
+    "len": 3,
+    "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1,
+    "x": 6,
+    "y": 2,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 3,
-    "y": 1,
+    "x": 4,
+    "y": 2,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 0,
-    "y": 1
+    "x": 3,
+    "y": 0
    },
    {
-    "x": 4,
-    "y": 1
+    "x": 0,
+    "y": 4
+   },
+   {
+    "x": 5,
+    "y": 5
    }
   ],
-  "par": 10,
-  "narrowness": 112
+  "turn": false,
+  "par": 11,
+  "narrowness": null
  }
 ];
 export const DAILY = [
@@ -4867,8 +5160,9 @@ export const DAILY = [
     "y": 5
    }
   ],
+  "turn": true,
   "par": 4,
-  "narrowness": 54
+  "narrowness": null
  },
  {
   "id": 102,
@@ -4892,7 +5186,7 @@ export const DAILY = [
    },
    {
     "id": "c1",
-    "x": 2,
+    "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
@@ -4900,56 +5194,56 @@ export const DAILY = [
    {
     "id": "c2",
     "x": 3,
-    "y": 0,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 5,
-    "y": 3,
+    "x": 2,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 4,
+    "x": 1,
+    "y": 4,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 0,
     "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
-    "x": 1,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
     "id": "c6",
-    "x": 0,
-    "y": 4,
+    "x": 1,
+    "y": 1,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 3,
-    "y": 4,
+    "x": 4,
+    "y": 3,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c8",
-    "x": 4,
-    "y": 5,
+    "x": 0,
+    "y": 3,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c9",
-    "x": 2,
-    "y": 3,
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    }
@@ -4957,29 +5251,19 @@ export const DAILY = [
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1,
-    "order": 1
-   },
-   {
-    "id": "p2",
-    "x": 3,
-    "y": 3,
-    "order": 2
+    "x": 2,
+    "y": 0
    }
   ],
   "walls": [
    {
-    "x": 0,
-    "y": 3
-   },
-   {
-    "x": 1,
-    "y": 5
+    "x": 3,
+    "y": 0
    }
   ],
-  "par": 5,
-  "narrowness": 2
+  "turn": true,
+  "par": 15,
+  "narrowness": null
  },
  {
   "id": 103,
@@ -5003,76 +5287,84 @@ export const DAILY = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 2,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c2",
     "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c2",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
     "id": "c3",
     "x": 2,
-    "y": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
     "x": 0,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
+    "y": 3,
+    "len": 3,
+    "dir": "v"
    },
    {
     "id": "c5",
     "x": 2,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 0,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c6",
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
     "id": "c7",
-    "x": 2,
-    "y": 0,
+    "x": 4,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c8",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
     "x": 1,
-    "y": 4,
-    "len": 3,
+    "y": 5,
+    "len": 2,
     "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 3
+    "x": 3,
+    "y": 5
    }
   ],
   "walls": [
    {
     "x": 0,
-    "y": 1
+    "y": 0
    }
   ],
-  "par": 5,
-  "narrowness": 12
+  "turn": true,
+  "par": 12,
+  "narrowness": null
  },
  {
   "id": 104,
@@ -5088,7 +5380,7 @@ export const DAILY = [
   "cars": [
    {
     "id": "R",
-    "x": 1,
+    "x": 0,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -5096,50 +5388,50 @@ export const DAILY = [
    },
    {
     "id": "c1",
-    "x": 3,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c2",
-    "x": 5,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c3",
-    "x": 4,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 4,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c5",
-    "x": 5,
+    "x": 2,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c6",
-    "x": 0,
-    "y": 4,
-    "len": 3,
+    "id": "c2",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 3,
+    "y": 3,
+    "len": 2,
     "dir": "h"
    },
    {
-    "id": "c7",
+    "id": "c5",
     "x": 0,
-    "y": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 5,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
@@ -5148,24 +5440,25 @@ export const DAILY = [
     "x": 3,
     "y": 4,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 3,
-    "y": 3
+    "x": 5,
+    "y": 5
    }
   ],
   "walls": [
    {
     "x": 2,
-    "y": 0
+    "y": 5
    }
   ],
-  "par": 3,
-  "narrowness": 2
+  "turn": true,
+  "par": 9,
+  "narrowness": null
  },
  {
   "id": 105,
@@ -5189,38 +5482,38 @@ export const DAILY = [
    },
    {
     "id": "c1",
-    "x": 4,
-    "y": 4,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 3,
-    "y": 4,
+    "x": 2,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 1,
+    "x": 4,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 1,
-    "y": 4,
+    "x": 0,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 0,
-    "y": 3,
+    "x": 4,
+    "y": 4,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    },
    {
     "id": "c6",
@@ -5232,33 +5525,41 @@ export const DAILY = [
    {
     "id": "c7",
     "x": 3,
-    "y": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 2,
-    "y": 4,
+    "id": "c9",
+    "x": 4,
+    "y": 0,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
     "x": 3,
-    "y": 3
+    "y": 1
    }
   ],
   "walls": [
    {
     "x": 5,
-    "y": 4
+    "y": 5
    }
   ],
-  "par": 3,
-  "narrowness": 2
+  "turn": true,
+  "par": 7,
+  "narrowness": null
  },
  {
   "id": 106,
@@ -5282,97 +5583,84 @@ export const DAILY = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 2,
+    "x": 3,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 3,
-    "y": 2,
+    "x": 4,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 2,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
+    "id": "c4",
     "x": 1,
-    "y": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 4,
+    "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 0,
-    "y": 5,
+    "x": 4,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c7",
     "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 4,
     "y": 3,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 2,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
-   },
-   {
     "id": "c9",
-    "x": 4,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c10",
-    "x": 3,
+    "x": 0,
     "y": 5,
-    "len": 2,
+    "len": 3,
     "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 3,
-    "y": 1,
-    "order": 1
-   },
-   {
-    "id": "p2",
-    "x": 2,
-    "y": 3,
-    "order": 2
+    "x": 5,
+    "y": 1
    }
   ],
   "walls": [
    {
-    "x": 2,
-    "y": 5
+    "x": 0,
+    "y": 3
    }
   ],
-  "par": 8,
-  "narrowness": 500
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 107,
@@ -5396,50 +5684,50 @@ export const DAILY = [
    },
    {
     "id": "c1",
-    "x": 3,
+    "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
+    "x": 2,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 1,
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 4,
-    "y": 2,
+    "x": 0,
+    "y": 5,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    },
    {
     "id": "c5",
-    "x": 1,
-    "y": 4,
+    "x": 0,
+    "y": 1,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 2,
-    "y": 3,
+    "x": 3,
+    "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c7",
     "x": 3,
-    "y": 5,
+    "y": 4,
     "len": 2,
     "dir": "h"
    },
@@ -5448,31 +5736,25 @@ export const DAILY = [
     "x": 2,
     "y": 0,
     "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c9",
-    "x": 0,
-    "y": 3,
-    "len": 2,
     "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1
+    "x": 3,
+    "y": 3
    }
   ],
   "walls": [
    {
-    "x": 1,
-    "y": 0
+    "x": 0,
+    "y": 4
    }
   ],
-  "par": 6,
-  "narrowness": 80
+  "turn": true,
+  "par": 4,
+  "narrowness": null
  },
  {
   "id": 108,
@@ -5496,94 +5778,102 @@ export const DAILY = [
    },
    {
     "id": "c1",
-    "x": 2,
+    "x": 5,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 2,
+    "x": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 1,
+    "x": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 5,
-    "y": 1,
+    "x": 4,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
     "x": 0,
-    "y": 1,
+    "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
     "x": 4,
     "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c7",
-    "x": 1,
-    "y": 3,
-    "len": 3,
-    "dir": "v"
-   },
-   {
     "id": "c8",
-    "x": 0,
-    "y": 4,
+    "x": 4,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c9",
     "x": 2,
-    "y": 5,
+    "y": 3,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
+   },
+   {
+    "id": "c10",
+    "x": 3,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 3,
-    "y": 3,
+    "x": 1,
+    "y": 0,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 2,
-    "y": 1,
+    "x": 5,
+    "y": 0,
     "order": 2
    }
   ],
   "walls": [
    {
     "x": 0,
-    "y": 0
+    "y": 4
    },
    {
-    "x": 3,
-    "y": 4
+    "x": 5,
+    "y": 1
    }
   ],
-  "par": 5,
-  "narrowness": 48
+  "turn": true,
+  "par": 15,
+  "narrowness": null
  },
  {
   "id": 109,
@@ -5599,7 +5889,7 @@ export const DAILY = [
   "cars": [
    {
     "id": "R",
-    "x": 0,
+    "x": 1,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -5607,65 +5897,58 @@ export const DAILY = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 1,
+    "x": 4,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 0,
+    "x": 2,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
+    "x": 3,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 3,
-    "y": 5,
+    "x": 1,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c5",
     "x": 4,
-    "y": 3,
+    "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 1,
-    "y": 0,
+    "x": 4,
+    "y": 5,
     "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c7",
-    "x": 1,
-    "y": 4,
-    "len": 3,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 5,
-    "y": 4,
+    "id": "c7",
+    "x": 0,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c9",
-    "x": 0,
+    "id": "c8",
+    "x": 1,
     "y": 3,
-    "len": 2,
+    "len": 3,
     "dir": "v"
    }
   ],
@@ -5673,17 +5956,18 @@ export const DAILY = [
    {
     "id": "p1",
     "x": 3,
-    "y": 1
+    "y": 0
    }
   ],
   "walls": [
    {
-    "x": 2,
-    "y": 1
+    "x": 3,
+    "y": 4
    }
   ],
-  "par": 10,
-  "narrowness": 16
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 110,
@@ -5707,75 +5991,76 @@ export const DAILY = [
    },
    {
     "id": "c1",
-    "x": 4,
-    "y": 3,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 2,
+    "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 2,
+    "x": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 2,
-    "y": 4,
+    "x": 3,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c5",
-    "x": 1,
-    "y": 0,
+    "x": 2,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c6",
     "x": 1,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c7",
-    "x": 3,
     "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 1,
+    "id": "c7",
+    "x": 3,
     "y": 3,
     "len": 2,
     "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 1
-   }
-  ],
-  "walls": [
-   {
     "x": 0,
     "y": 5
    }
   ],
-  "par": 3,
-  "narrowness": 2
+  "walls": [
+   {
+    "x": 5,
+    "y": 1
+   }
+  ],
+  "turn": true,
+  "par": 10,
+  "narrowness": null
  }
 ];

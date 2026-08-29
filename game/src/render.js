@@ -124,7 +124,8 @@ export class Renderer {
 
   drawCar(level, car, x, y, view, state) {
     const ctx = this.ctx;
-    const isH = car.dir === 'h';
+    const dir = (state.cars[car.id] && state.cars[car.id].dir) || car.dir;
+    const isH = dir === 'h';
     const wpx = (isH ? car.len : 1) * this.cell - 6;
     const hpx = (isH ? 1 : car.len) * this.cell - 6;
     const px = this.ox + x * this.cell + 3;

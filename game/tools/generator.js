@@ -6,11 +6,11 @@ import { slideTargets, applyMove } from '../src/rules/move.js';
 import { solve, checkNecessity, narrowness } from './solver.js';
 
 export const CHAPTERS = [
-  { ch: 1, scene: '小区窄巷', size: 6, cars: [3, 4], block: 2, len3: 0.15, pickups: 0, ordered: false, bus: 0, walls: [0, 0], steps: 3 },
-  { ch: 2, scene: '学校门口', size: 6, cars: [4, 5], block: 3, len3: 0.2, pickups: 1, ordered: false, bus: 0, walls: [0, 1], steps: 4 },
-  { ch: 3, scene: '写字楼', size: 6, cars: [5, 6], block: 3, len3: 0.25, pickups: 1, ordered: false, bus: 0, walls: [1, 1], steps: 5 },
-  { ch: 4, scene: '商场卸货区', size: 6, cars: [5, 6], block: 4, len3: 0.3, pickups: 2, ordered: true, bus: 0, walls: [1, 2], steps: 5 },
-  { ch: 5, scene: '机场高速', size: 6, cars: [6, 7], block: 4, len3: 0.3, pickups: 2, ordered: true, bus: 0, walls: [2, 2], steps: 6 },
+  { ch: 1, scene: '小区窄巷', size: 6, cars: [3, 4], block: 2, len3: 0.15, len4: 0, turn: false, pickups: 0, ordered: false, bus: 0, walls: [0, 0], steps: 3 },
+  { ch: 2, scene: '学校门口', size: 6, cars: [4, 5], block: 3, len3: 0.2, len4: 0, turn: true, pickups: 1, ordered: false, bus: 0, walls: [0, 1], steps: 4 },
+  { ch: 3, scene: '写字楼', size: 6, cars: [5, 6], block: 3, len3: 0.25, len4: 0.1, turn: true, pickups: 1, ordered: false, bus: 0, walls: [1, 1], steps: 5 },
+  { ch: 4, scene: '商场卸货区', size: 6, cars: [6, 7], block: 4, len3: 0.4, len4: 0.15, turn: true, pickups: 2, ordered: true, bus: 0, walls: [2, 2], steps: 5 },
+  { ch: 5, scene: '机场高速', size: 6, cars: [7, 8], block: 4, len3: 0.5, len4: 0.2, turn: true, pickups: 2, ordered: true, bus: 0, walls: [2, 2], steps: 6 },
 ];
 
 export function mulberry32(seed) {
@@ -99,7 +99,8 @@ function sampleSolvedBoard(cfg, rng) {
   let guard = 0;
   while (cars.length < nCars && guard++ < 300) {
     const dir = rng() < 0.5 ? 'h' : 'v';
-    const len = rng() < cfg.len3 ? 3 : 2;
+    const r4 = rng();
+    const len = r4 < (cfg.len4 || 0) ? 4 : r4 < (cfg.len4 || 0) + cfg.len3 ? 3 : 2;
     const x = Math.floor(rng() * w), y = Math.floor(rng() * h);
     const cells = [];
     for (let i = 0; i < len; i++) cells.push(dir === 'h' ? [x + i, y] : [x, y + i]);
@@ -108,7 +109,7 @@ function sampleSolvedBoard(cfg, rng) {
     cars.push({ id: 'c' + cars.length, x, y, len, dir });
   }
 
-  const def = { w, h, exit: { x: w, y: exitRow }, cars, pickups: [], walls };
+  const def = { w, h, exit: { x: w, y: exitRow }, cars, pickups: [], walls, turn: !!cfg.turn };
   try { createLevel(def); } catch { return null; }
   return def;
 }
@@ -147,7 +148,8 @@ export function makeCandidate(cfg, rng, stats) {
     const pickups = [];
     let pg = 0;
     while (pickups.length < cfg.pickups && pg++ < 80) {
-      const y = exitRow + (rng() < 0.5 ? -1 : 1);
+      // 转向关：乘客全图可放（红车可纵向机动）；非转向关：仅英雄行上下相邻行
+      const y = cfg.turn ? Math.floor(rng() * def.h) : exitRow + (rng() < 0.5 ? -1 : 1);
       if (y < 0 || y >= def.h) continue;
       const x = Math.floor(rng() * def.w);
       if (occupied.has(x + ',' + y)) continue;
@@ -163,6 +165,6 @@ export function makeCandidate(cfg, rng, stats) {
   if (!r.solvable) { stats.rejectUnsolvable++; return null; }
   if (r.par < 1) { stats.rejectPar++; return null; } // 退化关：英雄车已在道闸
 
-  const nar = def.w === 6 ? narrowness(def, r.par) : null;
+  const nar = def.w === 6 && !def.turn ? narrowness(def, r.par) : null;
   return { def, par: r.par, narrowness: nar };
 }

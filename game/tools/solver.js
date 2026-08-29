@@ -3,7 +3,7 @@
 // 注意：无班车关卡状态图是无向的（移动可逆），窄度用反向 BFS；班车关卡窄度置 null。
 
 import { createLevel, initialState, stateKey, cloneState } from '../src/rules/board.js';
-import { slideTargets, applyMove } from '../src/rules/move.js';
+import { slideTargets, applyMove, rotTargets } from '../src/rules/move.js';
 import { isWin } from '../src/rules/goal.js';
 
 // 前向 BFS。levelDef 为关卡定义；opts.from 可指定起始状态（提示功能用）。
@@ -28,7 +28,7 @@ export function solve(levelDef, opts = {}) {
 
     for (const car of level.cars) {
       if (car.bus) continue;
-      for (const t of slideTargets(level, s, car.id)) {
+      for (const t of [...slideTargets(level, s, car.id), ...rotTargets(level, s, car.id)]) {
         const ns = applyMove(level, s, car.id, t);
         const nk = stateKey(level, ns);
         if (dist.has(nk)) continue;
@@ -124,14 +124,13 @@ export function narrowness(levelDef, par) {
     if (dw === undefined) return 0; // 到不了胜利的态：剪掉
     if (dw === 0) return depth === P ? 1 : 0;
     if (depth + dw > P) return 0;
-    const mk = k * 64 + depth;
+    const mk = k + ':' + depth;
     const hit = memo.get(mk);
     if (hit !== undefined) return hit;
     let total = 0;
     outer: for (const car of level.cars) {
       for (const t of slideTargets(level, s, car.id)) {
-        const ns = applyMove(level, s, car.id, t);
-        total += ways(ns, depth + 1);
+        total += ways(applyMove(level, s, car.id, t), depth + 1);
         if (total >= CAP) { total = CAP; break outer; }
       }
     }

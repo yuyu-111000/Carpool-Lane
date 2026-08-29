@@ -11,6 +11,7 @@ export function createLevel(def) {
     cars: def.cars.map(c => ({ ...c })),
     pickups: (def.pickups || []).map(p => ({ ...p })),
     walls: (def.walls || []).map(w => ({ ...w })),
+    turn: !!def.turn,
   };
   // 派生：车辆占格集合、英雄车 id、乘客需求
   lvl.occupies = carCells;
@@ -33,7 +34,7 @@ export function carCells(car) {
 
 export function initialState(level) {
   const cars = {};
-  for (const c of level.cars) cars[c.id] = { x: c.x, y: c.y };
+  for (const c of level.cars) cars[c.id] = { x: c.x, y: c.y, dir: c.dir };
   return { cars, picked: [] };
 }
 
@@ -43,19 +44,19 @@ export function cloneState(s) {
   return { cars, picked: s.picked.slice() };
 }
 
-// 状态键：数值打包（坐标 0-7 用 8 进制位，乘客位图 4 bit）——比字符串快一个量级
+// 状态键：完整编码 x,y,dir（转向后固定轴会变，必须全编码）+ 乘客位图
 export function stateKey(level, s) {
-  let key = 0;
-  for (let i = 0; i < level.cars.length; i++) {
-    const c = level.cars[i];
+  let out = '';
+  for (const c of level.cars) {
     const p = s.cars[c.id];
-    key = key * 8 + (c.dir === 'h' ? p.x : p.y);
+    const d = (p.dir || c.dir) === 'h' ? 0 : 1;
+    out += p.x.toString(8) + p.y.toString(8) + d;
   }
   let pm = 0;
   for (let i = 0; i < level.pickups.length; i++) {
     if (s.picked.includes(level.pickups[i].id)) pm |= 1 << i;
   }
-  return key * 16 + pm;
+  return out + '|' + pm;
 }
 
 // 占用网格：返回 Map "x,y" -> carId（只统计车身，乘客格不占）
@@ -64,7 +65,7 @@ export function occupancyGrid(level, s) {
   for (const w of level.walls) grid.set(w.x + ',' + w.y, '#');
   for (const c of level.cars) {
     const p = s.cars[c.id];
-    for (const cell of carCells({ ...c, x: p.x, y: p.y })) {
+    for (const cell of carCells({ ...c, dir: p.dir || c.dir, x: p.x, y: p.y })) {
       grid.set(cell.x + ',' + cell.y, c.id);
     }
   }

@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createLevel, initialState, cloneState, stateKey, occupancyGrid } from '../src/rules/board.js';
-import { slideTargets, applyMove, movableCars } from '../src/rules/move.js';
+import { slideTargets, applyMove, movableCars, rotTargets } from '../src/rules/move.js';
 import { gateOpen, isWin } from '../src/rules/goal.js';
 
 const L1 = {
@@ -107,6 +107,42 @@ test('班车：玩家每步后班车位移，被挡（越界）则停，班车�
   const s5 = applyMove(lvl, s4, 'R', 1);
   assert.equal(s5.cars.B.y, 0, '班车越界被挡，停在顶部');
   assert.throws(() => applyMove(lvl, s5, 'B', 3), /bus/);
+});
+
+test('转向：师傅车可在 2x2 空间原地掉头，朝向入状态', () => {
+  const def = {
+    w: 6, h: 6, exit: { x: 6, y: 2 }, turn: true,
+    cars: [{ id: 'R', x: 2, y: 0, len: 2, dir: 'h', role: 'hero' }],
+    pickups: [], walls: [],
+  };
+  const lvl = createLevel(def);
+  const s0 = initialState(lvl);
+  const rots = rotTargets(lvl, s0, 'R');
+  assert.ok(rots.includes('r0+'));
+  assert.ok(rots.includes('r1+'));
+  assert.ok(!rots.includes('r0-'), '上摆出界不合法');
+  const s1 = applyMove(lvl, s0, 'R', 'r0+');
+  assert.equal(s1.cars.R.dir, 'v', '转向后朝向变竖');
+  const rots2 = rotTargets(lvl, s1, 'R');
+  assert.ok(rots2.includes('r0-') || rots2.includes('r1-'), '竖车可转回横');
+});
+
+test('转向需 2x2 空间：被挡则不可转；非英雄车不能转', () => {
+  const def = {
+    w: 6, h: 6, exit: { x: 6, y: 2 }, turn: true,
+    cars: [
+      { id: 'R', x: 2, y: 0, len: 2, dir: 'h', role: 'hero' },
+      { id: 'b', x: 2, y: 1, len: 1, dir: 'v' },
+      { id: 'a', x: 4, y: 0, len: 2, dir: 'h' },
+    ],
+    pickups: [], walls: [],
+  };
+  const lvl = createLevel(def);
+  const s0 = initialState(lvl);
+  const rots = rotTargets(lvl, s0, 'R');
+  assert.ok(!rots.includes('r0+'), 'pivot0 下摆被 b 挡');
+  assert.ok(rots.includes('r1+'), 'pivot1 下摆 (3,1) 空');
+  assert.deepEqual(rotTargets(lvl, s0, 'a'), [], '非英雄车不能转向');
 });
 
 test('乘客是障碍物：未接时车不能滑过，接走后格子开放', () => {

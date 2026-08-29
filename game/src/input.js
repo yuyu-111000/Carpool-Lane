@@ -37,11 +37,10 @@ export class Input {
     const d = this.drag;
     this.drag = null;
     if (d.moved) {
-      const target = this.cb.projectDrag(d.carId, e.clientX, e.clientY, d.targets);
-      if (target !== null) this.cb.onMove(d.carId, target);
+      const res = this.cb.projectDrag(d.carId, e.clientX, e.clientY, d.targets);
+      if (res != null) this.cb.onMove(d.carId, res);
       else this.cb.onDragPreview(d.carId, null);
     } else {
-      // 点击模式：点车选中后再点目标格
       const cell = this.cb.cellAt(e.clientX, e.clientY);
       if (cell) this.cb.onTapCell(d.carId, cell);
     }

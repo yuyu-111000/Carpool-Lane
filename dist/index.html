@@ -298,6 +298,7 @@ function createLevel(def) {
     cars: def.cars.map(c => ({ ...c })),
     pickups: (def.pickups || []).map(p => ({ ...p })),
     walls: (def.walls || []).map(w => ({ ...w })),
+    turn: !!def.turn,
   };
   // 派生：车辆占格集合、英雄车 id、乘客需求
   lvl.occupies = carCells;
@@ -320,7 +321,7 @@ function carCells(car) {
 
 function initialState(level) {
   const cars = {};
-  for (const c of level.cars) cars[c.id] = { x: c.x, y: c.y };
+  for (const c of level.cars) cars[c.id] = { x: c.x, y: c.y, dir: c.dir };
   return { cars, picked: [] };
 }
 
@@ -330,19 +331,19 @@ function cloneState(s) {
   return { cars, picked: s.picked.slice() };
 }
 
-// 状态键：数值打包（坐标 0-7 用 8 进制位，乘客位图 4 bit）——比字符串快一个量级
+// 状态键：完整编码 x,y,dir（转向后固定轴会变，必须全编码）+ 乘客位图
 function stateKey(level, s) {
-  let key = 0;
-  for (let i = 0; i < level.cars.length; i++) {
-    const c = level.cars[i];
+  let out = '';
+  for (const c of level.cars) {
     const p = s.cars[c.id];
-    key = key * 8 + (c.dir === 'h' ? p.x : p.y);
+    const d = (p.dir || c.dir) === 'h' ? 0 : 1;
+    out += p.x.toString(8) + p.y.toString(8) + d;
   }
   let pm = 0;
   for (let i = 0; i < level.pickups.length; i++) {
     if (s.picked.includes(level.pickups[i].id)) pm |= 1 << i;
   }
-  return key * 16 + pm;
+  return out + '|' + pm;
 }
 
 // 占用网格：返回 Map "x,y" -> carId（只统计车身，乘客格不占）
@@ -351,7 +352,7 @@ function occupancyGrid(level, s) {
   for (const w of level.walls) grid.set(w.x + ',' + w.y, '#');
   for (const c of level.cars) {
     const p = s.cars[c.id];
-    for (const cell of carCells({ ...c, x: p.x, y: p.y })) {
+    for (const cell of carCells({ ...c, dir: p.dir || c.dir, x: p.x, y: p.y })) {
       grid.set(cell.x + ',' + cell.y, c.id);
     }
   }
@@ -381,9 +382,11 @@ function validateNoOverlap(lvl) {
 }
 
 /* ===== src/rules/move.js ===== */
-// move.js —— 移动规则（与求解器共用；班车同步推进在这里，单一事实源）
-// "一步" = 一辆车沿其方向连续滑动任意格数（Rush Hour 惯例）
+// move.js —— 移动规则（与求解器共用；转向/班车同步推进在这里，单一事实源）
+// "一步" = 一辆车一次连续滑动（任意格数），或一次 90° 原地转向（仅 len2 且 level.turn）
 
+
+const dirOf = (level, s, id) => s.cars[id].dir || level.cars.find(c => c.id === id).dir;
 
 function gridWithout(level, s, excludeId) {
   const grid = new Map();
@@ -396,34 +399,30 @@ function gridWithout(level, s, excludeId) {
   for (const c of level.cars) {
     if (c.id === excludeId) continue;
     const p = s.cars[c.id];
-    for (const cell of carCells({ ...c, x: p.x, y: p.y })) {
+    for (const cell of carCells({ ...c, dir: p.dir || c.dir, x: p.x, y: p.y })) {
       grid.set(cell.x + ',' + cell.y, c.id);
     }
   }
   return grid;
 }
 
-// 枚举某辆车当前可滑到的所有目标位置（不含原地）
+// 枚举某辆车当前可滑到的所有目标位置（不含原地），返回数值数组
 function slideTargets(level, s, carId) {
   const car = level.cars.find(c => c.id === carId);
-  if (car.bus) return []; // 班车不可被玩家移动
+  if (car.bus) return [];
   const pos = s.cars[carId];
+  const dir = pos.dir || car.dir;
   const grid = gridWithout(level, s, carId);
-  const isH = car.dir === 'h';
-  const axis = isH ? 'x' : 'y';
+  const isH = dir === 'h';
   const fixed = pos[isH ? 'y' : 'x'];
-  const cur = pos[axis];
+  const cur = pos[isH ? 'x' : 'y'];
   const max = isH ? level.w : level.h;
   const targets = [];
-
   const cellsAt = t => {
     const cells = [];
-    for (let i = 0; i < car.len; i++) {
-      cells.push(isH ? { x: t + i, y: fixed } : { x: fixed, y: t + i });
-    }
+    for (let i = 0; i < car.len; i++) cells.push(isH ? { x: t + i, y: fixed } : { x: fixed, y: t + i });
     return cells;
   };
-
   for (let t = cur - 1; t >= 0; t--) {
     if (cellsAt(t).some(c => grid.has(c.x + ',' + c.y))) break;
     targets.push(t);
@@ -435,34 +434,70 @@ function slideTargets(level, s, carId) {
   return targets;
 }
 
-// 执行一步：carId 滑到 axis 坐标 target，然后所有班车各走一格（被挡则停）。
-// 返回新状态（不修改入参）。非法移动抛 Error。
+// 转向结果：code='r<pivot0|1><+|->'。返回 {x,y,dir} 或 null
+// 横车 '+'=绕枢向下摆 / '-'=向上摆；竖车 '+'=向右 / '-'=向左
+function rotResult(level, s, carId, code) {
+  const car = level.cars.find(c => c.id === carId);
+  if (!level.turn || car.len !== 2 || car.bus) return null;
+  const pos = s.cars[carId];
+  const dir = pos.dir || car.dir;
+  const pivot = code[1] === '1' ? 1 : 0;
+  const sign = code[2] === '+' ? 1 : -1;
+  const cells = carCells({ ...car, dir, x: pos.x, y: pos.y });
+  const P = cells[pivot];
+  const swing = dir === 'h' ? { x: P.x, y: P.y + sign } : { x: P.x + sign, y: P.y };
+  if (swing.x < 0 || swing.x >= level.w || swing.y < 0 || swing.y >= level.h) return null;
+  const grid = gridWithout(level, s, carId);
+  if (grid.has(swing.x + ',' + swing.y)) return null;
+  const ndir = dir === 'h' ? 'v' : 'h';
+  if (ndir === 'v') return { x: P.x, y: Math.min(P.y, swing.y), dir: 'v' };
+  return { x: Math.min(P.x, swing.x), y: P.y, dir: 'h' };
+}
+
+function rotTargets(level, s, carId) {
+  const car = level.cars.find(c => c.id === carId);
+  // 只有师傅的车（英雄）能原地掉头：违停死车只会滑。控制求解分支。
+  if (!level.turn || car.role !== 'hero' || car.len !== 2 || car.bus) return [];
+  const out = [];
+  for (const code of ['r0+', 'r0-', 'r1+', 'r1-']) if (rotResult(level, s, carId, code)) out.push(code);
+  return out;
+}
+
+// 执行一步：target 为数值=滑动，为 'r..' 字符串=转向。返回新状态（不修改入参）。
 function applyMove(level, s, carId, target) {
   const car = level.cars.find(c => c.id === carId);
   if (!car) throw new Error('no car ' + carId);
   if (car.bus) throw new Error('bus car ' + carId + ' is not movable');
-  const targets = slideTargets(level, s, carId);
-  if (!targets.includes(target)) throw new Error('illegal move ' + carId + '->' + target);
 
-  const isH = car.dir === 'h';
   const next = {
     cars: { ...s.cars, [carId]: { ...s.cars[carId] } },
     picked: s.picked.slice(),
   };
-  next.cars[carId][isH ? 'x' : 'y'] = target;
 
-  // 捎人：英雄车滑完后，若车身任一格与未接乘客曼哈顿距离 1，接上它
+  if (typeof target === 'string') {
+    const rr = rotResult(level, s, carId, target);
+    if (!rr) throw new Error('illegal rot ' + carId + target);
+    next.cars[carId] = { x: rr.x, y: rr.y, dir: rr.dir };
+  } else {
+    const targets = slideTargets(level, s, carId);
+    if (!targets.includes(target)) throw new Error('illegal move ' + carId + '->' + target);
+    const isH = dirOf(level, s, carId) === 'h';
+    next.cars[carId][isH ? 'x' : 'y'] = target;
+  }
+
+  // 捎人：英雄车动作后，若车身任一格与未接乘客曼哈顿距离 1，接上它
   const hero = level.hero;
   const hp = next.cars[hero.id];
+  const hdir = next.cars[hero.id].dir || hero.dir;
   for (const p of level.pickups) {
     if (next.picked.includes(p.id)) continue;
     if (p.order != null) {
       const pending = level.pickups
         .filter(q => !next.picked.includes(q.id))
         .sort((a, b) => a.order - b.order);
-      if (pending[0].id !== p.id) continue; // 按序接送
+      if (pending[0].id !== p.id) continue;
     }
-    const near = carCells({ ...hero, x: hp.x, y: hp.y }).some(
+    const near = carCells({ ...hero, dir: hdir, x: hp.x, y: hp.y }).some(
       c => Math.abs(c.x - p.x) + Math.abs(c.y - p.y) === 1
     );
     if (near) next.picked.push(p.id);
@@ -475,10 +510,10 @@ function applyMove(level, s, carId, target) {
     const nx = bp.x + (c.bus.dx || 0);
     const ny = bp.y + (c.bus.dy || 0);
     const grid = gridWithout(level, next, c.id);
-    const body = carCells({ ...c, x: nx, y: ny });
+    const body = carCells({ ...c, dir: bp.dir || c.dir, x: nx, y: ny });
     const inBounds = body.every(b => b.x >= 0 && b.x < level.w && b.y >= 0 && b.y < level.h);
     const blocked = body.some(b => grid.has(b.x + ',' + b.y));
-    if (inBounds && !blocked) next.cars[c.id] = { x: nx, y: ny };
+    if (inBounds && !blocked) next.cars[c.id] = { x: nx, y: ny, dir: bp.dir || c.dir };
   }
   return next;
 }
@@ -509,8 +544,10 @@ function isWin(level, s) {
   if (!gateOpen(level, s)) return false;
   const hero = level.hero;
   const hp = s.cars[hero.id];
+  const dir = hp.dir || hero.dir;
+  if (dir !== 'h' || hp.y !== gateCell(level).y) return false; // 必须横向对齐出口行才能冲出
   const g = gateCell(level);
-  return carCells({ ...hero, x: hp.x, y: hp.y }).some(c => c.x === g.x && c.y === g.y);
+  return carCells({ ...hero, dir, x: hp.x, y: hp.y }).some(c => c.x === g.x && c.y === g.y);
 }
 
 /* ===== tools/solver.js ===== */
@@ -543,7 +580,7 @@ function solve(levelDef, opts = {}) {
 
     for (const car of level.cars) {
       if (car.bus) continue;
-      for (const t of slideTargets(level, s, car.id)) {
+      for (const t of [...slideTargets(level, s, car.id), ...rotTargets(level, s, car.id)]) {
         const ns = applyMove(level, s, car.id, t);
         const nk = stateKey(level, ns);
         if (dist.has(nk)) continue;
@@ -639,14 +676,13 @@ function narrowness(levelDef, par) {
     if (dw === undefined) return 0; // 到不了胜利的态：剪掉
     if (dw === 0) return depth === P ? 1 : 0;
     if (depth + dw > P) return 0;
-    const mk = k * 64 + depth;
+    const mk = k + ':' + depth;
     const hit = memo.get(mk);
     if (hit !== undefined) return hit;
     let total = 0;
     outer: for (const car of level.cars) {
       for (const t of slideTargets(level, s, car.id)) {
-        const ns = applyMove(level, s, car.id, t);
-        total += ways(ns, depth + 1);
+        total += ways(applyMove(level, s, car.id, t), depth + 1);
         if (total >= CAP) { total = CAP; break outer; }
       }
     }
@@ -750,6 +786,7 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 2,
   "narrowness": 3
  },
@@ -811,6 +848,7 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 2,
   "narrowness": 3
  },
@@ -879,6 +917,7 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 2,
   "narrowness": 3
  },
@@ -940,6 +979,7 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 2,
   "narrowness": 3
  },
@@ -1008,6 +1048,7 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 2,
   "narrowness": 2
  },
@@ -1069,6 +1110,7 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 3,
   "narrowness": 6
  },
@@ -1130,6 +1172,7 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 3,
   "narrowness": 12
  },
@@ -1198,6 +1241,7 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 2,
   "narrowness": 2
  },
@@ -1259,25 +1303,26 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
+  "turn": false,
   "par": 3,
   "narrowness": 4
  },
  {
   "id": 10,
   "chapter": 1,
-  "name": "小区窄巷 · 巷尾冲刺",
+  "name": "小区窄巷 · 大关",
   "quote": "班车别挤我！",
-  "w": 6,
-  "h": 6,
+  "w": 7,
+  "h": 7,
   "exit": {
-   "x": 6,
-   "y": 2
+   "x": 7,
+   "y": 3
   },
   "cars": [
    {
     "id": "R",
-    "x": 1,
-    "y": 2,
+    "x": 0,
+    "y": 3,
     "len": 2,
     "dir": "h",
     "role": "hero"
@@ -1285,50 +1330,106 @@ const LEVELS = [
    {
     "id": "c1",
     "x": 5,
-    "y": 3,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
     "x": 4,
-    "y": 1,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 3,
-    "y": 0,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 3,
+    "x": 2,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 1,
-    "y": 0,
+    "x": 6,
+    "y": 2,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c6",
+    "x": 1,
+    "y": 1,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 2,
+    "y": 6,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
     "x": 0,
-    "y": 3,
-    "len": 2,
+    "y": 4,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c9",
+    "x": 3,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 4,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c11",
+    "x": 1,
+    "y": 4,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c12",
+    "x": 4,
+    "y": 4,
+    "len": 3,
     "dir": "h"
    }
   ],
   "pickups": [],
-  "walls": [],
-  "par": 3,
-  "narrowness": 12
+  "walls": [
+   {
+    "x": 1,
+    "y": 0
+   },
+   {
+    "x": 0,
+    "y": 0
+   },
+   {
+    "x": 0,
+    "y": 2
+   }
+  ],
+  "turn": false,
+  "par": 8,
+  "narrowness": null
  },
  {
   "id": 11,
@@ -1344,7 +1445,7 @@ const LEVELS = [
   "cars": [
    {
     "id": "R",
-    "x": 0,
+    "x": 1,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -1359,64 +1460,65 @@ const LEVELS = [
    },
    {
     "id": "c2",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
     "x": 3,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c3",
-    "x": 4,
-    "y": 0,
+    "id": "c4",
+    "x": 0,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c4",
-    "x": 0,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
     "id": "c5",
     "x": 1,
-    "y": 0,
+    "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
     "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 3,
     "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c7",
-    "x": 0,
-    "y": 1,
-    "len": 3,
-    "dir": "h"
-   },
-   {
     "id": "c8",
     "x": 0,
-    "y": 4,
-    "len": 2,
+    "y": 3,
+    "len": 3,
     "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 3
+    "x": 5,
+    "y": 1
    }
   ],
   "walls": [],
-  "par": 3,
-  "narrowness": 6
+  "turn": true,
+  "par": 4,
+  "narrowness": null
  },
  {
   "id": 12,
@@ -1440,71 +1542,65 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 3,
-    "y": 3,
+    "x": 5,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
-    "y": 2,
+    "x": 3,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 4,
-    "y": 2,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 1,
+    "x": 4,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 3,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 0,
     "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
-    "x": 2,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c6",
+    "id": "c7",
     "x": 0,
     "y": 4,
     "len": 2,
     "dir": "v"
-   },
-   {
-    "id": "c7",
-    "x": 2,
-    "y": 3,
-    "len": 3,
-    "dir": "v"
-   },
-   {
-    "id": "c8",
-    "x": 3,
-    "y": 5,
-    "len": 3,
-    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1
+    "x": 2,
+    "y": 0
    }
   ],
   "walls": [],
-  "par": 4,
-  "narrowness": 12
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 13,
@@ -1520,7 +1616,7 @@ const LEVELS = [
   "cars": [
    {
     "id": "R",
-    "x": 1,
+    "x": 0,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -1528,28 +1624,28 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 2,
+    "x": 4,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 3,
+    "x": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 2,
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 0,
+    "x": 3,
     "y": 4,
     "len": 2,
     "dir": "v"
@@ -1559,40 +1655,34 @@ const LEVELS = [
     "x": 1,
     "y": 4,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c6",
-    "x": 3,
-    "y": 1,
+    "x": 2,
+    "y": 3,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 3,
+    "x": 4,
     "y": 4,
     "len": 2,
     "dir": "v"
-   },
-   {
-    "id": "c8",
-    "x": 0,
-    "y": 3,
-    "len": 3,
-    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
     "x": 5,
-    "y": 1
+    "y": 5
    }
   ],
   "walls": [],
-  "par": 4,
-  "narrowness": 12
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 14,
@@ -1616,64 +1706,72 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 4,
-    "y": 1,
+    "x": 3,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 2,
-    "y": 0,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 5,
-    "y": 0,
+    "x": 4,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 3,
-    "y": 4,
+    "x": 1,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 1,
-    "y": 4,
+    "x": 2,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c6",
-    "x": 2,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 4,
+    "x": 0,
     "y": 4,
     "len": 2,
     "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 2,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
     "x": 5,
-    "y": 3
+    "y": 1
    }
   ],
   "walls": [],
-  "par": 2,
-  "narrowness": 1
+  "turn": true,
+  "par": 4,
+  "narrowness": null
  },
  {
   "id": 15,
@@ -1697,29 +1795,29 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
+    "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 3,
+    "x": 5,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 4,
-    "y": 3,
+    "x": 3,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 4,
-    "y": 5,
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
@@ -1732,29 +1830,42 @@ const LEVELS = [
    },
    {
     "id": "c6",
-    "x": 0,
-    "y": 0,
+    "x": 3,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 1,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c7",
-    "x": 0,
+    "id": "c8",
+    "x": 3,
     "y": 4,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
-    "y": 1
+    "x": 0,
+    "y": 4
    }
   ],
-  "walls": [],
-  "par": 4,
-  "narrowness": 18
+  "walls": [
+   {
+    "x": 5,
+    "y": 4
+   }
+  ],
+  "turn": true,
+  "par": 7,
+  "narrowness": null
  },
  {
   "id": 16,
@@ -1778,69 +1889,77 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
-    "y": 2,
+    "x": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
     "x": 5,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c3",
-    "x": 3,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
     "id": "c4",
-    "x": 0,
-    "y": 1,
+    "x": 1,
+    "y": 3,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c5",
-    "x": 3,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 2,
+    "x": 5,
     "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c7",
-    "x": 2,
-    "y": 1,
+    "id": "c6",
+    "x": 0,
+    "y": 5,
     "len": 2,
     "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 3
+    "x": 5,
+    "y": 0
    }
   ],
   "walls": [
    {
     "x": 0,
-    "y": 3
+    "y": 4
    }
   ],
-  "par": 4,
-  "narrowness": 15
+  "turn": true,
+  "par": 7,
+  "narrowness": null
  },
  {
   "id": 17,
@@ -1864,69 +1983,65 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 3,
-    "y": 0,
+    "x": 5,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
+    "x": 3,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
     "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c3",
-    "x": 2,
+    "id": "c4",
+    "x": 0,
     "y": 1,
-    "len": 2,
-    "dir": "v"
+    "len": 3,
+    "dir": "h"
    },
    {
-    "id": "c4",
+    "id": "c5",
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
     "x": 5,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
-    "x": 0,
-    "y": 1,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 2,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
-   },
-   {
     "id": "c7",
     "x": 1,
     "y": 3,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
-    "y": 3
-   }
-  ],
-  "walls": [
-   {
     "x": 0,
-    "y": 3
+    "y": 5
    }
   ],
-  "par": 5,
-  "narrowness": 216
+  "walls": [],
+  "turn": true,
+  "par": 7,
+  "narrowness": null
  },
  {
   "id": 18,
@@ -1950,8 +2065,8 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 3,
+    "x": 4,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
@@ -1964,57 +2079,63 @@ const LEVELS = [
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 0,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 2,
-    "y": 4,
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c5",
-    "x": 4,
-    "y": 1,
-    "len": 2,
+    "x": 0,
+    "y": 3,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c6",
     "x": 4,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c7",
-    "x": 0,
-    "y": 3,
+    "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 0,
+    "id": "c7",
+    "x": 2,
     "y": 4,
     "len": 2,
     "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
+    "x": 3,
+    "y": 1
+   }
+  ],
+  "walls": [
+   {
+    "x": 4,
     "y": 3
    }
   ],
-  "walls": [],
-  "par": 3,
-  "narrowness": 2
+  "turn": true,
+  "par": 4,
+  "narrowness": null
  },
  {
   "id": 19,
@@ -2046,42 +2167,49 @@ const LEVELS = [
    {
     "id": "c2",
     "x": 3,
-    "y": 3,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 1,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
     "x": 4,
     "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c5",
-    "x": 0,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
     "id": "c6",
-    "x": 2,
-    "y": 0,
+    "x": 1,
+    "y": 5,
     "len": 3,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 0,
-    "y": 5,
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 2,
+    "y": 0,
     "len": 2,
     "dir": "h"
    }
@@ -2090,17 +2218,13 @@ const LEVELS = [
    {
     "id": "p1",
     "x": 5,
-    "y": 1
-   }
-  ],
-  "walls": [
-   {
-    "x": 5,
     "y": 5
    }
   ],
-  "par": 6,
-  "narrowness": 96
+  "walls": [],
+  "turn": true,
+  "par": 9,
+  "narrowness": null
  },
  {
   "id": 20,
@@ -2124,76 +2248,77 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 4,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c2",
     "x": 3,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c2",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
     "id": "c3",
-    "x": 2,
+    "x": 5,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 4,
-    "y": 0,
+    "x": 5,
+    "y": 4,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c5",
-    "x": 0,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 0,
+    "x": 3,
     "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c7",
-    "x": 1,
+    "id": "c6",
+    "x": 3,
     "y": 5,
-    "len": 3,
+    "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 2,
+    "id": "c7",
+    "x": 0,
     "y": 0,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
     "x": 5,
-    "y": 3
+    "y": 0
    }
   ],
   "walls": [
    {
-    "x": 4,
-    "y": 4
+    "x": 0,
+    "y": 5
    }
   ],
-  "par": 6,
-  "narrowness": 20
+  "turn": true,
+  "par": 9,
+  "narrowness": null
  },
  {
   "id": 21,
@@ -2218,14 +2343,14 @@ const LEVELS = [
    {
     "id": "c1",
     "x": 4,
-    "y": 0,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
-    "y": 1,
+    "x": 3,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
@@ -2238,36 +2363,36 @@ const LEVELS = [
    },
    {
     "id": "c4",
-    "x": 3,
+    "x": 0,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 1,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c6",
-    "x": 1,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
     "x": 5,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c8",
+    "id": "c6",
     "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
     "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 5,
     "len": 2,
     "dir": "h"
    }
@@ -2275,18 +2400,19 @@ const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 3
+    "x": 3,
+    "y": 0
    }
   ],
   "walls": [
    {
-    "x": 3,
-    "y": 1
+    "x": 1,
+    "y": 4
    }
   ],
-  "par": 4,
-  "narrowness": 9
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 22,
@@ -2310,8 +2436,8 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
-    "y": 2,
+    "x": 5,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
@@ -2324,69 +2450,63 @@ const LEVELS = [
    },
    {
     "id": "c3",
-    "x": 5,
-    "y": 3,
+    "x": 4,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 3,
-    "y": 0,
+    "x": 2,
+    "y": 4,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c5",
     "x": 0,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 2,
-    "y": 4,
+    "y": 0,
     "len": 3,
     "dir": "h"
    },
    {
-    "id": "c7",
-    "x": 0,
-    "y": 1,
+    "id": "c6",
+    "x": 1,
+    "y": 4,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
    },
    {
     "id": "c8",
-    "x": 1,
-    "y": 5,
+    "x": 3,
+    "y": 4,
     "len": 2,
     "dir": "h"
-   },
-   {
-    "id": "c9",
-    "x": 5,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 1
+    "x": 5,
+    "y": 0
    }
   ],
   "walls": [
    {
-    "x": 3,
-    "y": 3
+    "x": 4,
+    "y": 5
    }
   ],
-  "par": 4,
-  "narrowness": 2
+  "turn": true,
+  "par": 7,
+  "narrowness": null
  },
  {
   "id": 23,
@@ -2410,21 +2530,21 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 4,
+    "x": 5,
     "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 2,
-    "y": 1,
+    "x": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
+    "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
@@ -2432,35 +2552,42 @@ const LEVELS = [
    {
     "id": "c4",
     "x": 0,
-    "y": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
     "x": 4,
-    "y": 3,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c6",
-    "x": 4,
-    "y": 5,
+    "x": 2,
+    "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 2,
+    "x": 0,
     "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 5,
-    "y": 1,
+    "id": "c9",
+    "x": 1,
+    "y": 4,
     "len": 2,
     "dir": "v"
    }
@@ -2468,18 +2595,19 @@ const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 3
+    "x": 4,
+    "y": 0
    }
   ],
   "walls": [
    {
-    "x": 0,
-    "y": 1
+    "x": 5,
+    "y": 5
    }
   ],
-  "par": 4,
-  "narrowness": 6
+  "turn": true,
+  "par": 7,
+  "narrowness": null
  },
  {
   "id": 24,
@@ -2503,57 +2631,57 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c2",
-    "x": 3,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c3",
     "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c4",
-    "x": 2,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c5",
-    "x": 0,
+    "id": "c2",
+    "x": 5,
     "y": 0,
     "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 1,
-    "y": 3,
-    "len": 2,
     "dir": "v"
    },
    {
-    "id": "c7",
+    "id": "c3",
     "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c8",
+    "id": "c4",
     "x": 3,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 1,
     "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 5,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 0,
     "len": 2,
     "dir": "h"
    }
@@ -2561,18 +2689,19 @@ const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1
+    "x": 4,
+    "y": 4
    }
   ],
   "walls": [
    {
-    "x": 4,
-    "y": 5
+    "x": 3,
+    "y": 1
    }
   ],
-  "par": 3,
-  "narrowness": 2
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 25,
@@ -2596,64 +2725,64 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 4,
+    "x": 3,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
-    "y": 1,
+    "x": 4,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 0,
-    "y": 4,
-    "len": 3,
-    "dir": "h"
-   },
-   {
-    "id": "c5",
-    "x": 5,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c6",
-    "x": 1,
+    "x": 2,
     "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c7",
-    "x": 0,
-    "y": 3,
+    "id": "c4",
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 3,
+    "y": 0,
     "len": 3,
     "dir": "h"
    },
    {
+    "id": "c6",
+    "x": 0,
+    "y": 5,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
     "id": "c8",
-    "x": 2,
-    "y": 1,
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c9",
-    "x": 3,
-    "y": 3,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    }
@@ -2661,18 +2790,19 @@ const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 1
+    "x": 5,
+    "y": 4
    }
   ],
   "walls": [
    {
-    "x": 4,
+    "x": 5,
     "y": 5
    }
   ],
-  "par": 4,
-  "narrowness": 6
+  "turn": true,
+  "par": 8,
+  "narrowness": null
  },
  {
   "id": 26,
@@ -2704,14 +2834,14 @@ const LEVELS = [
    {
     "id": "c2",
     "x": 5,
-    "y": 1,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 3,
-    "y": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
@@ -2719,53 +2849,54 @@ const LEVELS = [
     "id": "c4",
     "x": 4,
     "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c5",
-    "x": 0,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 5,
-    "y": 3,
     "len": 3,
     "dir": "v"
    },
    {
+    "id": "c5",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
     "id": "c7",
-    "x": 0,
+    "x": 5,
     "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c8",
-    "x": 1,
-    "y": 4,
+    "x": 3,
+    "y": 5,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 3,
-    "y": 1
+    "x": 2,
+    "y": 0
    }
   ],
   "walls": [
    {
-    "x": 2,
-    "y": 4
+    "x": 5,
+    "y": 5
    }
   ],
-  "par": 5,
-  "narrowness": 32
+  "turn": true,
+  "par": 8,
+  "narrowness": null
  },
  {
   "id": 27,
@@ -2789,7 +2920,7 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 4,
+    "x": 3,
     "y": 1,
     "len": 2,
     "dir": "v"
@@ -2803,50 +2934,50 @@ const LEVELS = [
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 2,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 0,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c5",
-    "x": 0,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 4,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
     "x": 5,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c8",
+    "id": "c4",
     "x": 2,
     "y": 0,
     "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 3,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 1,
+    "y": 5,
+    "len": 3,
     "dir": "h"
    },
    {
+    "id": "c8",
+    "x": 5,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
     "id": "c9",
-    "x": 4,
-    "y": 3,
+    "x": 3,
+    "y": 0,
     "len": 2,
     "dir": "h"
    }
@@ -2854,18 +2985,19 @@ const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
-    "y": 1
+    "x": 4,
+    "y": 2
    }
   ],
   "walls": [
    {
-    "x": 0,
+    "x": 1,
     "y": 0
    }
   ],
-  "par": 5,
-  "narrowness": 72
+  "turn": true,
+  "par": 9,
+  "narrowness": null
  },
  {
   "id": 28,
@@ -2881,7 +3013,7 @@ const LEVELS = [
   "cars": [
    {
     "id": "R",
-    "x": 0,
+    "x": 2,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -2890,37 +3022,37 @@ const LEVELS = [
    {
     "id": "c1",
     "x": 3,
-    "y": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 0,
+    "x": 5,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 2,
-    "y": 1,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 1,
-    "y": 4,
-    "len": 2,
+    "x": 3,
+    "y": 3,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c5",
     "x": 1,
     "y": 0,
-    "len": 3,
-    "dir": "h"
+    "len": 2,
+    "dir": "v"
    },
    {
     "id": "c6",
@@ -2931,21 +3063,14 @@ const LEVELS = [
    },
    {
     "id": "c7",
-    "x": 0,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c8",
-    "x": 0,
-    "y": 0,
+    "x": 3,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c9",
-    "x": 4,
+    "id": "c8",
+    "x": 0,
     "y": 3,
     "len": 2,
     "dir": "h"
@@ -2955,17 +3080,18 @@ const LEVELS = [
    {
     "id": "p1",
     "x": 5,
-    "y": 1
+    "y": 4
    }
   ],
   "walls": [
    {
-    "x": 5,
-    "y": 5
+    "x": 4,
+    "y": 0
    }
   ],
-  "par": 3,
-  "narrowness": 1
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 29,
@@ -2989,7 +3115,7 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
+    "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
@@ -2997,114 +3123,108 @@ const LEVELS = [
    {
     "id": "c2",
     "x": 4,
-    "y": 1,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 3,
-    "y": 3,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
     "x": 1,
-    "y": 5,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c5",
-    "x": 3,
-    "y": 5,
+    "x": 4,
+    "y": 4,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c6",
-    "x": 1,
-    "y": 3,
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c7",
     "x": 2,
-    "y": 1,
-    "len": 2,
+    "y": 3,
+    "len": 3,
     "dir": "v"
    },
    {
     "id": "c8",
     "x": 0,
-    "y": 4,
+    "y": 0,
     "len": 2,
     "dir": "v"
-   },
-   {
-    "id": "c9",
-    "x": 4,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 3,
-    "y": 1
+    "x": 5,
+    "y": 5
    }
   ],
   "walls": [
    {
-    "x": 0,
-    "y": 1
+    "x": 1,
+    "y": 4
    }
   ],
-  "par": 5,
-  "narrowness": 40
+  "turn": true,
+  "par": 11,
+  "narrowness": null
  },
  {
   "id": 30,
   "chapter": 3,
-  "name": "写字楼 · 顶流",
+  "name": "写字楼 · 大关",
   "quote": "油门当刹车？不存在的。",
-  "w": 6,
-  "h": 6,
+  "w": 7,
+  "h": 7,
   "exit": {
-   "x": 6,
-   "y": 2
+   "x": 7,
+   "y": 3
   },
   "cars": [
    {
     "id": "R",
-    "x": 1,
-    "y": 2,
+    "x": 0,
+    "y": 3,
     "len": 2,
     "dir": "h",
     "role": "hero"
    },
    {
     "id": "c1",
-    "x": 4,
-    "y": 1,
+    "x": 6,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 2,
-    "y": 3,
+    "x": 4,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 2,
+    "x": 2,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
@@ -3112,60 +3232,83 @@ const LEVELS = [
     "id": "c4",
     "x": 5,
     "y": 3,
-    "len": 3,
+    "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
     "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 3,
+    "y": 5,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
     "y": 0,
     "len": 3,
     "dir": "h"
    },
    {
-    "id": "c6",
+    "id": "c8",
+    "x": 2,
+    "y": 6,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 3,
+    "y": 1,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
     "x": 0,
-    "y": 3,
+    "y": 4,
     "len": 3,
     "dir": "v"
    },
    {
-    "id": "c7",
-    "x": 3,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c8",
-    "x": 5,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c9",
-    "x": 2,
-    "y": 5,
-    "len": 2,
+    "id": "c11",
+    "x": 4,
+    "y": 0,
+    "len": 3,
     "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 0,
-    "y": 1
+    "x": 2,
+    "y": 2
    }
   ],
   "walls": [
    {
-    "x": 4,
-    "y": 3
+    "x": 1,
+    "y": 1
+   },
+   {
+    "x": 6,
+    "y": 4
+   },
+   {
+    "x": 1,
+    "y": 4
    }
   ],
-  "par": 6,
-  "narrowness": 30
+  "turn": false,
+  "par": 16,
+  "narrowness": null
  },
  {
   "id": 31,
@@ -3189,21 +3332,21 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 2,
+    "x": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
     "x": 4,
-    "y": 1,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
+    "x": 5,
     "y": 3,
     "len": 2,
     "dir": "v"
@@ -3211,49 +3354,56 @@ const LEVELS = [
    {
     "id": "c4",
     "x": 3,
-    "y": 3,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
     "x": 1,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
+    "y": 5,
+    "len": 3,
+    "dir": "h"
    },
    {
     "id": "c6",
-    "x": 1,
+    "x": 0,
     "y": 0,
-    "len": 3,
-    "dir": "h"
+    "len": 2,
+    "dir": "v"
    },
    {
     "id": "c7",
     "x": 4,
     "y": 0,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c8",
-    "x": 0,
-    "y": 3,
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c9",
-    "x": 1,
-    "y": 1,
-    "len": 2,
-    "dir": "h"
+    "id": "c10",
+    "x": 0,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
    },
    {
-    "id": "c10",
-    "x": 4,
-    "y": 5,
+    "id": "c11",
+    "x": 2,
+    "y": 3,
     "len": 2,
     "dir": "h"
    }
@@ -3261,25 +3411,30 @@ const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1,
+    "x": 1,
+    "y": 4,
     "order": 1
    },
    {
     "id": "p2",
     "x": 3,
-    "y": 1,
+    "y": 0,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 2,
+    "x": 1,
+    "y": 0
+   },
+   {
+    "x": 4,
     "y": 5
    }
   ],
-  "par": 5,
-  "narrowness": 4
+  "turn": true,
+  "par": 10,
+  "narrowness": null
  },
  {
   "id": 32,
@@ -3304,68 +3459,75 @@ const LEVELS = [
    {
     "id": "c1",
     "x": 3,
-    "y": 4,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
     "x": 5,
-    "y": 1,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
+    "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 4,
+    "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 0,
+    "x": 3,
     "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 1,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 1,
+    "x": 0,
     "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
+    "id": "c7",
+    "x": 2,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
     "id": "c8",
-    "x": 1,
-    "y": 1,
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c9",
     "x": 0,
-    "y": 3,
-    "len": 3,
-    "dir": "v"
+    "y": 1,
+    "len": 2,
+    "dir": "h"
    },
    {
     "id": "c10",
+    "x": 2,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c11",
     "x": 4,
     "y": 5,
     "len": 2,
@@ -3375,29 +3537,30 @@ const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 3,
+    "x": 4,
+    "y": 4,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 4,
-    "y": 3,
+    "x": 5,
+    "y": 4,
     "order": 2
    }
   ],
   "walls": [
    {
     "x": 5,
-    "y": 4
+    "y": 0
    },
    {
-    "x": 4,
-    "y": 4
+    "x": 1,
+    "y": 5
    }
   ],
-  "par": 5,
-  "narrowness": 12
+  "turn": true,
+  "par": 12,
+  "narrowness": null
  },
  {
   "id": 33,
@@ -3421,94 +3584,102 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 4,
+    "x": 5,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
+    "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 0,
+    "x": 4,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 2,
+    "x": 3,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 1,
+    "x": 0,
     "y": 3,
-    "len": 2,
+    "len": 3,
     "dir": "v"
    },
    {
     "id": "c6",
-    "x": 3,
-    "y": 5,
-    "len": 3,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 3,
+    "x": 1,
     "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
+    "id": "c7",
     "x": 5,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c8",
+    "x": 3,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
     "id": "c9",
+    "x": 1,
+    "y": 5,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
     "x": 0,
-    "y": 3,
+    "y": 1,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
+    "x": 2,
     "y": 3,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 2,
-    "y": 1,
+    "x": 1,
+    "y": 0,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 1,
-    "y": 1
+    "x": 4,
+    "y": 4
    },
    {
-    "x": 2,
-    "y": 0
+    "x": 5,
+    "y": 5
    }
   ],
-  "par": 6,
-  "narrowness": 64
+  "turn": true,
+  "par": 13,
+  "narrowness": null
  },
  {
   "id": 34,
@@ -3532,90 +3703,102 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c2",
-    "x": 4,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c3",
-    "x": 5,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
     "x": 3,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
-    "x": 0,
+    "id": "c2",
+    "x": 5,
     "y": 0,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
-    "id": "c6",
+    "id": "c3",
     "x": 2,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c7",
-    "x": 0,
-    "y": 4,
+    "id": "c4",
+    "x": 4,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c5",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 1,
+    "len": 3,
+    "dir": "h"
+   },
+   {
     "id": "c8",
-    "x": 1,
+    "x": 4,
     "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c9",
-    "x": 3,
-    "y": 0,
+    "x": 0,
+    "y": 3,
     "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 0,
+    "y": 0,
+    "len": 3,
     "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 1,
+    "x": 3,
+    "y": 4,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 4,
-    "y": 3,
+    "x": 5,
+    "y": 2,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 3,
-    "y": 1
+    "x": 0,
+    "y": 4
+   },
+   {
+    "x": 2,
+    "y": 5
    }
   ],
-  "par": 3,
-  "narrowness": 4
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 35,
@@ -3631,7 +3814,7 @@ const LEVELS = [
   "cars": [
    {
     "id": "R",
-    "x": 0,
+    "x": 1,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -3639,14 +3822,14 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 3,
-    "y": 2,
+    "x": 4,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 2,
+    "x": 3,
     "y": 1,
     "len": 2,
     "dir": "v"
@@ -3654,49 +3837,56 @@ const LEVELS = [
    {
     "id": "c3",
     "x": 5,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
-    "x": 0,
-    "y": 3,
+    "id": "c4",
+    "x": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c5",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
     "id": "c6",
-    "x": 2,
-    "y": 5,
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 3,
+    "y": 0,
     "len": 3,
     "dir": "h"
    },
    {
-    "id": "c7",
-    "x": 0,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
     "id": "c8",
-    "x": 2,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
+    "x": 4,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
    },
    {
     "id": "c9",
-    "x": 2,
-    "y": 3,
+    "x": 0,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 5,
+    "y": 4,
     "len": 2,
     "dir": "v"
    }
@@ -3704,25 +3894,30 @@ const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1,
+    "x": 2,
+    "y": 4,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 3,
-    "y": 1,
+    "x": 1,
+    "y": 4,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 4,
-    "y": 1
+    "x": 3,
+    "y": 3
+   },
+   {
+    "x": 3,
+    "y": 5
    }
   ],
-  "par": 7,
-  "narrowness": 48
+  "turn": true,
+  "par": 13,
+  "narrowness": null
  },
  {
   "id": 36,
@@ -3746,71 +3941,78 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 2,
+    "x": 2,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 2,
+    "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 1,
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 4,
+    "x": 3,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 3,
+    "x": 1,
     "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 2,
+    "x": 4,
     "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c7",
-    "x": 0,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c8",
     "x": 1,
     "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c9",
+    "id": "c8",
     "x": 1,
     "y": 3,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c10",
-    "x": 4,
-    "y": 0,
+    "x": 5,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c11",
+    "x": 1,
+    "y": 4,
     "len": 2,
     "dir": "h"
    }
@@ -3818,25 +4020,30 @@ const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1,
+    "x": 3,
+    "y": 4,
     "order": 1
    },
    {
     "id": "p2",
     "x": 3,
-    "y": 3,
+    "y": 5,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 1,
-    "y": 1
+    "x": 0,
+    "y": 4
+   },
+   {
+    "x": 5,
+    "y": 5
    }
   ],
-  "par": 8,
-  "narrowness": 240
+  "turn": true,
+  "par": 15,
+  "narrowness": null
  },
  {
   "id": 37,
@@ -3860,64 +4067,78 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
+    "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 4,
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 1,
+    "x": 4,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
     "x": 3,
-    "y": 1,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 2,
+    "x": 3,
     "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
     "x": 5,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c9",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 2,
     "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c7",
-    "x": 4,
+    "id": "c11",
+    "x": 2,
     "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c8",
-    "x": 0,
-    "y": 1,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c9",
-    "x": 0,
-    "y": 3,
     "len": 2,
     "dir": "h"
    }
@@ -3925,25 +4146,30 @@ const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 1,
+    "x": 2,
+    "y": 3,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 2,
-    "y": 3,
+    "x": 0,
+    "y": 0,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 1,
-    "y": 0
+    "x": 4,
+    "y": 5
+   },
+   {
+    "x": 0,
+    "y": 5
    }
   ],
-  "par": 8,
-  "narrowness": 500
+  "turn": true,
+  "par": 17,
+  "narrowness": null
  },
  {
   "id": 38,
@@ -3967,45 +4193,45 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 3,
+    "x": 4,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
     "x": 2,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c3",
-    "x": 4,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 3,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
-    "x": 0,
+    "id": "c3",
+    "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 5,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c6",
+    "id": "c5",
     "x": 3,
-    "y": 0,
+    "y": 4,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 2,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
    },
    {
     "id": "c7",
@@ -4023,41 +4249,46 @@ const LEVELS = [
    },
    {
     "id": "c9",
-    "x": 3,
+    "x": 4,
     "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c10",
-    "x": 5,
-    "y": 0,
+    "x": 2,
+    "y": 5,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 3,
+    "x": 2,
+    "y": 1,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 2,
+    "x": 5,
     "y": 1,
     "order": 2
    }
   ],
   "walls": [
    {
+    "x": 0,
+    "y": 0
+   },
+   {
     "x": 4,
-    "y": 4
+    "y": 3
    }
   ],
-  "par": 4,
-  "narrowness": 4
+  "turn": true,
+  "par": 7,
+  "narrowness": null
  },
  {
   "id": 39,
@@ -4081,7 +4312,7 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 3,
+    "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
@@ -4089,56 +4320,63 @@ const LEVELS = [
    {
     "id": "c2",
     "x": 5,
-    "y": 3,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 4,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
     "x": 2,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
+    "id": "c4",
     "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 1,
     "y": 4,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c6",
-    "x": 1,
+    "x": 3,
     "y": 5,
-    "len": 2,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 4,
-    "y": 0,
+    "x": 3,
+    "y": 3,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c8",
-    "x": 1,
+    "x": 3,
     "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c9",
-    "x": 1,
-    "y": 3,
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c10",
+    "x": 4,
+    "y": 4,
     "len": 2,
     "dir": "h"
    }
@@ -4146,14 +4384,140 @@ const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 3,
+    "x": 2,
+    "y": 5,
     "order": 1
    },
    {
     "id": "p2",
     "x": 5,
+    "y": 0,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 5,
+    "y": 1
+   },
+   {
+    "x": 0,
+    "y": 3
+   }
+  ],
+  "turn": true,
+  "par": 17,
+  "narrowness": null
+ },
+ {
+  "id": 40,
+  "chapter": 4,
+  "name": "商场卸货区 · 大关",
+  "quote": "班车别挤我！",
+  "w": 7,
+  "h": 7,
+  "exit": {
+   "x": 7,
+   "y": 3
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 5,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 6,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 2,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 6,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 2,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 6,
+    "y": 0,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c9",
+    "x": 2,
     "y": 1,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 0,
+    "y": 0,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c11",
+    "x": 5,
+    "y": 4,
+    "len": 3,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 2,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 3,
+    "y": 4,
     "order": 2
    }
   ],
@@ -4161,124 +4525,19 @@ const LEVELS = [
    {
     "x": 1,
     "y": 1
-   }
-  ],
-  "par": 8,
-  "narrowness": 350
- },
- {
-  "id": 40,
-  "chapter": 4,
-  "name": "商场卸货区 · 双乘客",
-  "quote": "班车别挤我！",
-  "w": 6,
-  "h": 6,
-  "exit": {
-   "x": 6,
-   "y": 2
-  },
-  "cars": [
-   {
-    "id": "R",
-    "x": 0,
-    "y": 2,
-    "len": 2,
-    "dir": "h",
-    "role": "hero"
    },
    {
-    "id": "c1",
     "x": 3,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
+    "y": 0
    },
    {
-    "id": "c2",
-    "x": 5,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c3",
     "x": 4,
-    "y": 2,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 2,
-    "y": 2,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c5",
-    "x": 0,
-    "y": 1,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 3,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 4,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c8",
-    "x": 1,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c9",
-    "x": 3,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c10",
-    "x": 0,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
+    "y": 2
    }
   ],
-  "pickups": [
-   {
-    "id": "p1",
-    "x": 2,
-    "y": 1,
-    "order": 1
-   },
-   {
-    "id": "p2",
-    "x": 5,
-    "y": 1,
-    "order": 2
-   }
-  ],
-  "walls": [
-   {
-    "x": 1,
-    "y": 5
-   }
-  ],
-  "par": 9,
-  "narrowness": 84
+  "turn": false,
+  "par": 24,
+  "narrowness": null
  },
  {
   "id": 41,
@@ -4316,15 +4575,15 @@ const LEVELS = [
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 1,
+    "x": 4,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 4,
-    "y": 0,
+    "x": 2,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
@@ -4332,39 +4591,46 @@ const LEVELS = [
     "id": "c5",
     "x": 1,
     "y": 3,
-    "len": 2,
-    "dir": "v"
+    "len": 3,
+    "dir": "h"
    },
    {
     "id": "c6",
-    "x": 3,
+    "x": 1,
     "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c7",
-    "x": 0,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c8",
-    "x": 1,
+    "x": 4,
     "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
+    "id": "c8",
+    "x": 3,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
     "id": "c9",
-    "x": 4,
-    "y": 4,
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c10",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c11",
     "x": 5,
     "y": 4,
     "len": 2,
@@ -4374,29 +4640,30 @@ const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
-    "y": 3,
+    "x": 0,
+    "y": 4,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 3,
-    "y": 3,
+    "x": 0,
+    "y": 5,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 2,
-    "y": 4
+    "x": 1,
+    "y": 0
    },
    {
     "x": 1,
     "y": 1
    }
   ],
-  "par": 6,
-  "narrowness": 15
+  "turn": true,
+  "par": 12,
+  "narrowness": null
  },
  {
   "id": 42,
@@ -4420,197 +4687,86 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
+    "x": 3,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
     "x": 5,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c3",
-    "x": 3,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
     "id": "c4",
     "x": 4,
-    "y": 1,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 3,
-    "y": 2,
-    "len": 3,
-    "dir": "v"
-   },
-   {
-    "id": "c6",
     "x": 4,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c7",
-    "x": 1,
     "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
+    "id": "c6",
     "x": 0,
-    "y": 3,
+    "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c9",
-    "x": 1,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c10",
-    "x": 5,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   }
-  ],
-  "pickups": [
-   {
-    "id": "p1",
-    "x": 2,
-    "y": 3,
-    "order": 1
-   },
-   {
-    "id": "p2",
-    "x": 5,
-    "y": 3,
-    "order": 2
-   }
-  ],
-  "walls": [
-   {
-    "x": 0,
-    "y": 0
-   },
-   {
-    "x": 0,
-    "y": 5
-   }
-  ],
-  "par": 6,
-  "narrowness": 100
- },
- {
-  "id": 43,
-  "chapter": 5,
-  "name": "机场高速 · 两位贵宾",
-  "quote": "一把轮的事儿。",
-  "w": 6,
-  "h": 6,
-  "exit": {
-   "x": 6,
-   "y": 2
-  },
-  "cars": [
-   {
-    "id": "R",
-    "x": 0,
-    "y": 2,
-    "len": 2,
-    "dir": "h",
-    "role": "hero"
-   },
-   {
-    "id": "c1",
-    "x": 4,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c2",
-    "x": 5,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c3",
-    "x": 3,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 2,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c5",
-    "x": 0,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c6",
-    "x": 2,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
     "id": "c7",
-    "x": 1,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c8",
     "x": 2,
     "y": 0,
     "len": 3,
     "dir": "h"
    },
    {
-    "id": "c9",
-    "x": 0,
-    "y": 0,
+    "id": "c8",
+    "x": 3,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c10",
-    "x": 5,
-    "y": 3,
+    "id": "c9",
+    "x": 0,
+    "y": 5,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c11",
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 3,
+    "x": 2,
     "y": 1,
     "order": 1
    },
@@ -4627,12 +4783,132 @@ const LEVELS = [
     "y": 3
    },
    {
-    "x": 1,
-    "y": 5
+    "x": 5,
+    "y": 3
    }
   ],
-  "par": 7,
-  "narrowness": 1
+  "turn": true,
+  "par": 12,
+  "narrowness": null
+ },
+ {
+  "id": 43,
+  "chapter": 5,
+  "name": "机场高速 · 两位贵宾",
+  "quote": "一把轮的事儿。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 3,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 3,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 5,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 0,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 5,
+    "y": 1,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 4,
+    "y": 5
+   },
+   {
+    "x": 4,
+    "y": 4
+   }
+  ],
+  "turn": true,
+  "par": 12,
+  "narrowness": null
  },
  {
   "id": 44,
@@ -4656,85 +4932,99 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
-    "y": 3,
+    "x": 3,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
     "x": 4,
-    "y": 0,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 1,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 5,
-    "y": 1,
+    "x": 2,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 0,
+    "x": 4,
     "y": 0,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    },
    {
     "id": "c6",
     "x": 1,
     "y": 5,
-    "len": 2,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 0,
-    "y": 3,
+    "x": 1,
+    "y": 1,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c8",
-    "x": 3,
+    "x": 0,
     "y": 3,
-    "len": 3,
+    "len": 2,
     "dir": "v"
    },
    {
     "id": "c9",
-    "x": 4,
+    "x": 5,
     "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c10",
-    "x": 5,
-    "y": 3,
-    "len": 3,
+    "x": 0,
+    "y": 0,
+    "len": 2,
     "dir": "v"
+   },
+   {
+    "id": "c11",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c12",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
-    "y": 1,
+    "x": 4,
+    "y": 3,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 4,
+    "x": 3,
     "y": 3,
     "order": 2
    }
@@ -4742,15 +5032,16 @@ const LEVELS = [
   "walls": [
    {
     "x": 1,
-    "y": 1
+    "y": 0
    },
    {
-    "x": 2,
-    "y": 0
+    "x": 3,
+    "y": 4
    }
   ],
-  "par": 4,
-  "narrowness": 9
+  "turn": true,
+  "par": 8,
+  "narrowness": null
  },
  {
   "id": 45,
@@ -4774,71 +5065,85 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
-    "y": 3,
+    "x": 4,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 1,
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 5,
-    "y": 2,
+    "x": 2,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
     "x": 3,
-    "y": 2,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 3,
-    "y": 0,
-    "len": 3,
+    "x": 4,
+    "y": 5,
+    "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 2,
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
     "y": 5,
     "len": 3,
     "dir": "h"
    },
    {
-    "id": "c7",
-    "x": 1,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
     "id": "c8",
     "x": 0,
-    "y": 0,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c9",
     "x": 0,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 4,
     "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c10",
-    "x": 0,
-    "y": 5,
+    "id": "c11",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c12",
+    "x": 1,
+    "y": 3,
     "len": 2,
     "dir": "h"
    }
@@ -4846,29 +5151,30 @@ const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
-    "y": 1,
+    "x": 4,
+    "y": 2,
     "order": 1
    },
    {
     "id": "p2",
     "x": 5,
-    "y": 1,
+    "y": 2,
     "order": 2
    }
   ],
   "walls": [
    {
     "x": 3,
-    "y": 1
+    "y": 5
    },
    {
-    "x": 4,
-    "y": 3
+    "x": 1,
+    "y": 1
    }
   ],
-  "par": 7,
-  "narrowness": 24
+  "turn": true,
+  "par": 13,
+  "narrowness": null
  },
  {
   "id": 46,
@@ -4884,7 +5190,7 @@ const LEVELS = [
   "cars": [
    {
     "id": "R",
-    "x": 0,
+    "x": 2,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -4892,77 +5198,77 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
+    "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
-    "y": 2,
+    "x": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 4,
-    "y": 1,
+    "x": 2,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 3,
+    "x": 5,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 4,
+    "x": 2,
     "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 2,
-    "y": 0,
-    "len": 2,
+    "x": 3,
+    "y": 3,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 3,
-    "y": 3,
+    "x": 0,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c8",
-    "x": 5,
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 2,
     "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c9",
-    "x": 0,
+    "id": "c10",
+    "x": 1,
     "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c10",
-    "x": 0,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
     "id": "c11",
-    "x": 1,
+    "x": 4,
     "y": 4,
     "len": 2,
     "dir": "v"
@@ -4971,29 +5277,30 @@ const LEVELS = [
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
+    "x": 1,
     "y": 3,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 2,
-    "y": 3,
+    "x": 5,
+    "y": 4,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 3,
-    "y": 5
+    "x": 0,
+    "y": 4
    },
    {
-    "x": 4,
-    "y": 4
+    "x": 1,
+    "y": 0
    }
   ],
-  "par": 8,
-  "narrowness": 192
+  "turn": true,
+  "par": 16,
+  "narrowness": null
  },
  {
   "id": 47,
@@ -5009,7 +5316,7 @@ const LEVELS = [
   "cars": [
    {
     "id": "R",
-    "x": 1,
+    "x": 0,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -5017,14 +5324,14 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 2,
-    "y": 0,
+    "x": 5,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
+    "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
@@ -5032,35 +5339,35 @@ const LEVELS = [
    {
     "id": "c3",
     "x": 3,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
-    "x": 4,
-    "y": 0,
+    "id": "c4",
+    "x": 2,
+    "y": 1,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
-    "id": "c6",
-    "x": 1,
+    "id": "c5",
+    "x": 0,
     "y": 3,
     "len": 2,
     "dir": "h"
    },
    {
+    "id": "c6",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
     "id": "c7",
-    "x": 4,
-    "y": 4,
+    "x": 1,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
@@ -5073,45 +5380,53 @@ const LEVELS = [
    },
    {
     "id": "c9",
-    "x": 1,
+    "x": 2,
     "y": 5,
-    "len": 2,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c10",
     "x": 0,
-    "y": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
+   },
+   {
+    "id": "c11",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 3,
+    "x": 4,
     "y": 3,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 0,
-    "y": 1,
+    "x": 5,
+    "y": 4,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 5,
-    "y": 5
+    "x": 4,
+    "y": 4
    },
    {
-    "x": 0,
+    "x": 5,
     "y": 5
    }
   ],
-  "par": 8,
-  "narrowness": 6
+  "turn": true,
+  "par": 16,
+  "narrowness": null
  },
  {
   "id": 48,
@@ -5136,21 +5451,21 @@ const LEVELS = [
    {
     "id": "c1",
     "x": 2,
-    "y": 3,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
     "x": 3,
-    "y": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 5,
-    "y": 0,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
@@ -5163,73 +5478,74 @@ const LEVELS = [
    },
    {
     "id": "c5",
-    "x": 1,
-    "y": 0,
-    "len": 2,
+    "x": 0,
+    "y": 5,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 0,
-    "y": 1,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 0,
-    "y": 3,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c8",
-    "x": 2,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c9",
     "x": 4,
     "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c10",
-    "x": 0,
-    "y": 5,
+    "id": "c7",
+    "x": 2,
+    "y": 4,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 0,
     "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c10",
+    "x": 3,
+    "y": 5,
+    "len": 3,
     "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 3,
+    "x": 1,
+    "y": 4,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 2,
-    "y": 1,
+    "x": 3,
+    "y": 3,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 1,
-    "y": 4
+    "x": 0,
+    "y": 1
    },
    {
-    "x": 3,
-    "y": 0
+    "x": 5,
+    "y": 4
    }
   ],
-  "par": 5,
-  "narrowness": 8
+  "turn": true,
+  "par": 9,
+  "narrowness": null
  },
  {
   "id": 49,
@@ -5253,15 +5569,15 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
+    "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 2,
-    "y": 1,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
@@ -5274,198 +5590,211 @@ const LEVELS = [
    },
    {
     "id": "c4",
-    "x": 4,
-    "y": 1,
+    "x": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 2,
+    "x": 1,
     "y": 4,
-    "len": 2,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 2,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 0,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c8",
-    "x": 4,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c9",
-    "x": 4,
+    "x": 1,
     "y": 3,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c10",
-    "x": 1,
-    "y": 4,
+    "id": "c7",
+    "x": 3,
+    "y": 0,
     "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 0,
+    "y": 3,
+    "len": 3,
     "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 2,
-    "y": 3,
+    "x": 5,
+    "y": 5,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 3,
-    "y": 1,
+    "x": 4,
+    "y": 4,
     "order": 2
    }
   ],
   "walls": [
    {
     "x": 5,
-    "y": 5
+    "y": 0
    },
    {
-    "x": 1,
+    "x": 0,
     "y": 0
    }
   ],
-  "par": 10,
-  "narrowness": 6
+  "turn": true,
+  "par": 16,
+  "narrowness": null
  },
  {
   "id": 50,
   "chapter": 5,
-  "name": "机场高速 · 起飞",
+  "name": "机场高速 · 大关",
   "quote": "娃在路边等着呢。",
-  "w": 6,
-  "h": 6,
+  "w": 7,
+  "h": 7,
   "exit": {
-   "x": 6,
-   "y": 2
+   "x": 7,
+   "y": 3
   },
   "cars": [
    {
     "id": "R",
     "x": 0,
-    "y": 2,
+    "y": 3,
     "len": 2,
     "dir": "h",
     "role": "hero"
    },
    {
     "id": "c1",
-    "x": 4,
-    "y": 2,
+    "x": 3,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
-    "y": 2,
+    "x": 6,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 1,
+    "x": 4,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 3,
-    "y": 2,
+    "x": 2,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 3,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 2,
-    "y": 4,
-    "len": 3,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 0,
+    "x": 5,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c8",
-    "x": 1,
-    "y": 3,
-    "len": 2,
+    "id": "c6",
+    "x": 3,
+    "y": 6,
+    "len": 4,
     "dir": "h"
    },
    {
+    "id": "c7",
+    "x": 1,
+    "y": 0,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 2,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   },
+   {
     "id": "c9",
-    "x": 0,
-    "y": 5,
-    "len": 2,
+    "x": 4,
+    "y": 1,
+    "len": 3,
     "dir": "h"
    },
    {
     "id": "c10",
-    "x": 2,
-    "y": 5,
-    "len": 2,
+    "x": 0,
+    "y": 0,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c11",
+    "x": 4,
+    "y": 0,
+    "len": 3,
     "dir": "h"
+   },
+   {
+    "id": "c12",
+    "x": 1,
+    "y": 4,
+    "len": 3,
+    "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1,
+    "x": 6,
+    "y": 2,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 3,
-    "y": 1,
+    "x": 4,
+    "y": 2,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 0,
-    "y": 1
+    "x": 3,
+    "y": 0
    },
    {
-    "x": 4,
-    "y": 1
+    "x": 0,
+    "y": 4
+   },
+   {
+    "x": 5,
+    "y": 5
    }
   ],
-  "par": 10,
-  "narrowness": 112
+  "turn": false,
+  "par": 11,
+  "narrowness": null
  }
 ];
 const DAILY = [
@@ -5559,8 +5888,9 @@ const DAILY = [
     "y": 5
    }
   ],
+  "turn": true,
   "par": 4,
-  "narrowness": 54
+  "narrowness": null
  },
  {
   "id": 102,
@@ -5584,7 +5914,7 @@ const DAILY = [
    },
    {
     "id": "c1",
-    "x": 2,
+    "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
@@ -5592,56 +5922,56 @@ const DAILY = [
    {
     "id": "c2",
     "x": 3,
-    "y": 0,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 5,
-    "y": 3,
+    "x": 2,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 4,
+    "x": 1,
+    "y": 4,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 0,
     "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
-    "x": 1,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
     "id": "c6",
-    "x": 0,
-    "y": 4,
+    "x": 1,
+    "y": 1,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 3,
-    "y": 4,
+    "x": 4,
+    "y": 3,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    },
    {
     "id": "c8",
-    "x": 4,
-    "y": 5,
+    "x": 0,
+    "y": 3,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c9",
-    "x": 2,
-    "y": 3,
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    }
@@ -5649,29 +5979,19 @@ const DAILY = [
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1,
-    "order": 1
-   },
-   {
-    "id": "p2",
-    "x": 3,
-    "y": 3,
-    "order": 2
+    "x": 2,
+    "y": 0
    }
   ],
   "walls": [
    {
-    "x": 0,
-    "y": 3
-   },
-   {
-    "x": 1,
-    "y": 5
+    "x": 3,
+    "y": 0
    }
   ],
-  "par": 5,
-  "narrowness": 2
+  "turn": true,
+  "par": 15,
+  "narrowness": null
  },
  {
   "id": 103,
@@ -5695,76 +6015,84 @@ const DAILY = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 2,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c2",
     "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c2",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
     "id": "c3",
     "x": 2,
-    "y": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
     "x": 0,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
+    "y": 3,
+    "len": 3,
+    "dir": "v"
    },
    {
     "id": "c5",
     "x": 2,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 0,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c6",
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
     "id": "c7",
-    "x": 2,
-    "y": 0,
+    "x": 4,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c8",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
     "x": 1,
-    "y": 4,
-    "len": 3,
+    "y": 5,
+    "len": 2,
     "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 3
+    "x": 3,
+    "y": 5
    }
   ],
   "walls": [
    {
     "x": 0,
-    "y": 1
+    "y": 0
    }
   ],
-  "par": 5,
-  "narrowness": 12
+  "turn": true,
+  "par": 12,
+  "narrowness": null
  },
  {
   "id": 104,
@@ -5780,7 +6108,7 @@ const DAILY = [
   "cars": [
    {
     "id": "R",
-    "x": 1,
+    "x": 0,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -5788,50 +6116,50 @@ const DAILY = [
    },
    {
     "id": "c1",
-    "x": 3,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c2",
-    "x": 5,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c3",
-    "x": 4,
-    "y": 0,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 4,
-    "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c5",
-    "x": 5,
+    "x": 2,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c6",
-    "x": 0,
-    "y": 4,
-    "len": 3,
+    "id": "c2",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 3,
+    "y": 3,
+    "len": 2,
     "dir": "h"
    },
    {
-    "id": "c7",
+    "id": "c5",
     "x": 0,
-    "y": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 5,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
@@ -5840,24 +6168,25 @@ const DAILY = [
     "x": 3,
     "y": 4,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 3,
-    "y": 3
+    "x": 5,
+    "y": 5
    }
   ],
   "walls": [
    {
     "x": 2,
-    "y": 0
+    "y": 5
    }
   ],
-  "par": 3,
-  "narrowness": 2
+  "turn": true,
+  "par": 9,
+  "narrowness": null
  },
  {
   "id": 105,
@@ -5881,38 +6210,38 @@ const DAILY = [
    },
    {
     "id": "c1",
-    "x": 4,
-    "y": 4,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 3,
-    "y": 4,
+    "x": 2,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 1,
+    "x": 4,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 1,
-    "y": 4,
+    "x": 0,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 0,
-    "y": 3,
+    "x": 4,
+    "y": 4,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    },
    {
     "id": "c6",
@@ -5924,33 +6253,41 @@ const DAILY = [
    {
     "id": "c7",
     "x": 3,
-    "y": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 2,
-    "y": 4,
+    "id": "c9",
+    "x": 4,
+    "y": 0,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
     "x": 3,
-    "y": 3
+    "y": 1
    }
   ],
   "walls": [
    {
     "x": 5,
-    "y": 4
+    "y": 5
    }
   ],
-  "par": 3,
-  "narrowness": 2
+  "turn": true,
+  "par": 7,
+  "narrowness": null
  },
  {
   "id": 106,
@@ -5974,97 +6311,84 @@ const DAILY = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 2,
+    "x": 3,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 3,
-    "y": 2,
+    "x": 4,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 2,
-    "y": 1,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c4",
-    "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c5",
+    "id": "c4",
     "x": 1,
-    "y": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 4,
+    "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 0,
-    "y": 5,
+    "x": 4,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c7",
     "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 4,
     "y": 3,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 2,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
-   },
-   {
     "id": "c9",
-    "x": 4,
-    "y": 0,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c10",
-    "x": 3,
+    "x": 0,
     "y": 5,
-    "len": 2,
+    "len": 3,
     "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 3,
-    "y": 1,
-    "order": 1
-   },
-   {
-    "id": "p2",
-    "x": 2,
-    "y": 3,
-    "order": 2
+    "x": 5,
+    "y": 1
    }
   ],
   "walls": [
    {
-    "x": 2,
-    "y": 5
+    "x": 0,
+    "y": 3
    }
   ],
-  "par": 8,
-  "narrowness": 500
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 107,
@@ -6088,50 +6412,50 @@ const DAILY = [
    },
    {
     "id": "c1",
-    "x": 3,
+    "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 5,
+    "x": 2,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 1,
+    "x": 5,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 4,
-    "y": 2,
+    "x": 0,
+    "y": 5,
     "len": 2,
-    "dir": "v"
+    "dir": "h"
    },
    {
     "id": "c5",
-    "x": 1,
-    "y": 4,
+    "x": 0,
+    "y": 1,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 2,
-    "y": 3,
+    "x": 3,
+    "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c7",
     "x": 3,
-    "y": 5,
+    "y": 4,
     "len": 2,
     "dir": "h"
    },
@@ -6140,31 +6464,25 @@ const DAILY = [
     "x": 2,
     "y": 0,
     "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c9",
-    "x": 0,
-    "y": 3,
-    "len": 2,
     "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 1
+    "x": 3,
+    "y": 3
    }
   ],
   "walls": [
    {
-    "x": 1,
-    "y": 0
+    "x": 0,
+    "y": 4
    }
   ],
-  "par": 6,
-  "narrowness": 80
+  "turn": true,
+  "par": 4,
+  "narrowness": null
  },
  {
   "id": 108,
@@ -6188,94 +6506,102 @@ const DAILY = [
    },
    {
     "id": "c1",
-    "x": 2,
+    "x": 5,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 2,
+    "x": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 1,
+    "x": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 5,
-    "y": 1,
+    "x": 4,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
     "x": 0,
-    "y": 1,
+    "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
     "x": 4,
     "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c7",
-    "x": 1,
-    "y": 3,
-    "len": 3,
-    "dir": "v"
-   },
-   {
     "id": "c8",
-    "x": 0,
-    "y": 4,
+    "x": 4,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c9",
     "x": 2,
-    "y": 5,
+    "y": 3,
     "len": 2,
-    "dir": "h"
+    "dir": "v"
+   },
+   {
+    "id": "c10",
+    "x": 3,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 3,
-    "y": 3,
+    "x": 1,
+    "y": 0,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 2,
-    "y": 1,
+    "x": 5,
+    "y": 0,
     "order": 2
    }
   ],
   "walls": [
    {
     "x": 0,
-    "y": 0
+    "y": 4
    },
    {
-    "x": 3,
-    "y": 4
+    "x": 5,
+    "y": 1
    }
   ],
-  "par": 5,
-  "narrowness": 48
+  "turn": true,
+  "par": 15,
+  "narrowness": null
  },
  {
   "id": 109,
@@ -6291,7 +6617,7 @@ const DAILY = [
   "cars": [
    {
     "id": "R",
-    "x": 0,
+    "x": 1,
     "y": 2,
     "len": 2,
     "dir": "h",
@@ -6299,65 +6625,58 @@ const DAILY = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 1,
+    "x": 4,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 0,
+    "x": 2,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
+    "x": 3,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 3,
-    "y": 5,
+    "x": 1,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c5",
     "x": 4,
-    "y": 3,
+    "y": 4,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c6",
-    "x": 1,
-    "y": 0,
+    "x": 4,
+    "y": 5,
     "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c7",
-    "x": 1,
-    "y": 4,
-    "len": 3,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 5,
-    "y": 4,
+    "id": "c7",
+    "x": 0,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c9",
-    "x": 0,
+    "id": "c8",
+    "x": 1,
     "y": 3,
-    "len": 2,
+    "len": 3,
     "dir": "v"
    }
   ],
@@ -6365,17 +6684,18 @@ const DAILY = [
    {
     "id": "p1",
     "x": 3,
-    "y": 1
+    "y": 0
    }
   ],
   "walls": [
    {
-    "x": 2,
-    "y": 1
+    "x": 3,
+    "y": 4
    }
   ],
-  "par": 10,
-  "narrowness": 16
+  "turn": true,
+  "par": 6,
+  "narrowness": null
  },
  {
   "id": 110,
@@ -6399,76 +6719,77 @@ const DAILY = [
    },
    {
     "id": "c1",
-    "x": 4,
-    "y": 3,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 2,
+    "x": 4,
     "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 3,
-    "y": 2,
+    "x": 2,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 2,
-    "y": 4,
+    "x": 3,
+    "y": 0,
     "len": 2,
     "dir": "h"
    },
    {
     "id": "c5",
-    "x": 1,
-    "y": 0,
+    "x": 2,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c6",
     "x": 1,
-    "y": 4,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c7",
-    "x": 3,
     "y": 5,
     "len": 2,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 1,
+    "id": "c7",
+    "x": 3,
     "y": 3,
     "len": 2,
     "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 4,
-    "y": 1
-   }
-  ],
-  "walls": [
-   {
     "x": 0,
     "y": 5
    }
   ],
-  "par": 3,
-  "narrowness": 2
+  "walls": [
+   {
+    "x": 5,
+    "y": 1
+   }
+  ],
+  "turn": true,
+  "par": 10,
+  "narrowness": null
  }
 ];
 
@@ -6643,7 +6964,8 @@ class Renderer {
 
   drawCar(level, car, x, y, view, state) {
     const ctx = this.ctx;
-    const isH = car.dir === 'h';
+    const dir = (state.cars[car.id] && state.cars[car.id].dir) || car.dir;
+    const isH = dir === 'h';
     const wpx = (isH ? car.len : 1) * this.cell - 6;
     const hpx = (isH ? 1 : car.len) * this.cell - 6;
     const px = this.ox + x * this.cell + 3;
@@ -6872,11 +7194,10 @@ class Input {
     const d = this.drag;
     this.drag = null;
     if (d.moved) {
-      const target = this.cb.projectDrag(d.carId, e.clientX, e.clientY, d.targets);
-      if (target !== null) this.cb.onMove(d.carId, target);
+      const res = this.cb.projectDrag(d.carId, e.clientX, e.clientY, d.targets);
+      if (res != null) this.cb.onMove(d.carId, res);
       else this.cb.onDragPreview(d.carId, null);
     } else {
-      // 点击模式：点车选中后再点目标格
       const cell = this.cb.cellAt(e.clientX, e.clientY);
       if (cell) this.cb.onTapCell(d.carId, cell);
     }
@@ -6998,8 +7319,8 @@ function updateHud() {
 function tryMove(carId, target) {
   const g = game;
   if (g.won) return;
-  const targets = slideTargets(g.level, g.state, carId);
-  if (!targets.includes(target)) return;
+  const legal = [...slideTargets(g.level, g.state, carId), ...rotTargets(g.level, g.state, carId)];
+  if (!legal.includes(target)) return;
   const before = cloneState(g.state);
   const gateBefore = gateOpen(g.level, g.state);
   const ns = applyMove(g.level, g.state, carId, target);
@@ -7064,20 +7385,29 @@ const input = new Input(canvas, {
   onSelect(carId) { if (game) game.selectedId = carId; },
   onDragPreview(carId, target) { if (game) game.dragPreview = target === null ? null : { carId, target }; },
   projectDrag(carId, cx, cy, targets) {
-    if (!targets.length || !game) return null;
+    if (!game) return null;
     const car = game.level.cars.find(c => c.id === carId);
+    const st = game.state.cars[carId];
+    const dir = st.dir || car.dir;
+    const isH = dir === 'h';
     const rect = canvas.getBoundingClientRect();
-    const isH = car.dir === 'h';
-    const d = isH ? cx - (rect.left + renderer.ox + (game.state.cars[carId].x + car.len / 2) * renderer.cell)
-                  : cy - (rect.top + renderer.oy + (game.state.cars[carId].y + car.len / 2) * renderer.cell);
-    const delta = Math.round(d / renderer.cell);
-    const cur = game.state.cars[carId][isH ? 'x' : 'y'];
-    let best = null;
-    let bestDist = Infinity;
-    for (const t of targets) {
-      const dist = Math.abs(t - (cur + delta));
-      if (dist < bestDist) { bestDist = dist; best = t; }
+    const centerX = rect.left + renderer.ox + (st.x + (isH ? car.len : 1) / 2) * renderer.cell;
+    const centerY = rect.top + renderer.oy + (st.y + (isH ? 1 : car.len) / 2) * renderer.cell;
+    const dx = cx - centerX, dy = cy - centerY;
+    const axis = isH ? dx : dy;
+    const perp = isH ? dy : dx;
+    // 垂直于车身方向拖动 => 原地转向（len2 且本关开启转向）
+    if (game.level.turn && car.len === 2 && Math.abs(perp) > Math.abs(axis) && Math.abs(perp) > renderer.cell * 0.4) {
+      const sign = perp > 0 ? '+' : '-';
+      const rots = rotTargets(game.level, game.state, carId);
+      for (const piv of ['0', '1']) if (rots.includes('r' + piv + sign)) return 'r' + piv + sign;
+      return null;
     }
+    if (!targets.length) return null;
+    const delta = Math.round(axis / renderer.cell);
+    const cur = st[isH ? 'x' : 'y'];
+    let best = null, bd = Infinity;
+    for (const t of targets) { const d2 = Math.abs(t - (cur + delta)); if (d2 < bd) { bd = d2; best = t; } }
     if (best === cur) return null;
     return best;
   },
@@ -7088,7 +7418,7 @@ const input = new Input(canvas, {
   onTapCell(carId, cell) {
     if (!game) return;
     const car = game.level.cars.find(c => c.id === carId);
-    const isH = car.dir === 'h';
+    const isH = (game.state.cars[carId].dir || car.dir) === 'h';
     const cur = game.state.cars[carId][isH ? 'x' : 'y'];
     const t = isH
       ? (cell.x > cur ? cell.x - car.len + 1 : cell.x)
@@ -7105,9 +7435,10 @@ function hitCar(cx, cy) {
   const grid = new Map();
   for (const c of g.level.cars) {
     const p = g.state.cars[c.id];
+    const dir = p.dir || c.dir;
     for (let i = 0; i < c.len; i++) {
-      const x = c.dir === 'h' ? p.x + i : p.x;
-      const y = c.dir === 'v' ? p.y + i : p.y;
+      const x = dir === 'h' ? p.x + i : p.x;
+      const y = dir === 'v' ? p.y + i : p.y;
       grid.set(x + ',' + y, c);
     }
   }
@@ -7187,7 +7518,7 @@ function frame(t) {
       now: t,
     };
     renderer.draw(game.level, game.state, view, dt);
-    if (game.dragPreview) {
+    if (game.dragPreview && typeof game.dragPreview.target === 'number') {
       const ctx = renderer.ctx;
       const car = game.level.cars.find(c => c.id === game.dragPreview.carId);
       const isH = car.dir === 'h';
@@ -7205,6 +7536,13 @@ function frame(t) {
 
 showTitle();
 requestAnimationFrame(frame);
+
+// ?level=N 直达某关（试玩/测试用）
+const ql = new URLSearchParams(location.search).get('level');
+if (ql) {
+  const def = LEVELS.find(l => l.id === Number(ql)) || DAILY.find(l => l.id === Number(ql));
+  if (def) startLevel(def);
+}
 
 // 调试钩子（仅 ?debug=1 时暴露）：自动化测试用
 if (location.search.includes('debug=1')) {
