@@ -4,12 +4,12 @@
     {
       "ch": 1,
       "parRange": [
-        2,
-        13
+        3,
+        14
       ],
       "stats": {
         "attempts": 22,
-        "rejectLayout": 0,
+        "rejectLayout": 1,
         "rejectUnsolvable": 7,
         "rejectPar": 0,
         "rejectBus": 0,
@@ -17,28 +17,28 @@
       },
       "accepted": 12,
       "finalPars": [
-        2,
-        2,
-        2,
-        2,
-        2,
         3,
+        4,
+        4,
         3,
-        2,
+        5,
+        5,
+        5,
         3,
-        13
+        5,
+        14
       ]
     },
     {
       "ch": 2,
       "parRange": [
         4,
-        7
+        16
       ],
       "stats": {
         "attempts": 23,
         "rejectLayout": 0,
-        "rejectUnsolvable": 10,
+        "rejectUnsolvable": 8,
         "rejectPar": 0,
         "rejectBus": 0,
         "pruned": 0
@@ -54,7 +54,7 @@
         7,
         4,
         9,
-        7
+        16
       ]
     },
     {
@@ -89,12 +89,12 @@
       "ch": 4,
       "parRange": [
         10,
-        27
+        17
       ],
       "stats": {
         "attempts": 37,
         "rejectLayout": 0,
-        "rejectUnsolvable": 24,
+        "rejectUnsolvable": 25,
         "rejectPar": 0,
         "rejectBus": 0,
         "pruned": 0
@@ -110,19 +110,19 @@
         17,
         7,
         17,
-        27
+        17
       ]
     },
     {
       "ch": 5,
       "parRange": [
         12,
-        16
+        25
       ],
       "stats": {
         "attempts": 153,
-        "rejectLayout": 8,
-        "rejectUnsolvable": 133,
+        "rejectLayout": 4,
+        "rejectUnsolvable": 136,
         "rejectPar": 0,
         "rejectBus": 0,
         "pruned": 0
@@ -138,10 +138,10 @@
         16,
         9,
         16,
-        16
+        25
       ]
     }
   ],
-  "startedAt": "2026-08-29T09:39:53.869Z",
+  "startedAt": "2026-08-29T10:26:46.595Z",
   "elapsedMs": 0
 }

@@ -50,8 +50,8 @@ for (const cfg of CHAPTERS) {
     process.exit(1);
   }
   const ordered = waveOrder(cands);
-  // 大关：每章第 10 关（峰值）= 7x7 放大地图 + 加长车(len4)，取 par 较高者
-  const bossCfg = { ...cfg, size: 7, turn: false, len3: 0.3, len4: 0.5, cars: [cfg.cars[0] + 5, cfg.cars[1] + 5], walls: [2, 3], block: 4, steps: 5 };
+  // 大关：每章第 10 关（峰值）= 7x7 放大地图 + 加长车(len4) + 可掉头，取 par 较高者
+  const bossCfg = { ...cfg, size: 7, turn: true, len3: 0.3, len4: 0.5, cars: [cfg.cars[0] + 5, cfg.cars[1] + 5], walls: [2, 3], block: 4, steps: 5 };
   let boss = null;
   for (let i = 0; i < 10; i++) {
     const c = makeCandidate(bossCfg, rng, stats);

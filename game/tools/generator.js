@@ -6,7 +6,7 @@ import { slideTargets, applyMove } from '../src/rules/move.js';
 import { solve, checkNecessity, narrowness } from './solver.js';
 
 export const CHAPTERS = [
-  { ch: 1, scene: '小区窄巷', size: 6, cars: [3, 4], block: 2, len3: 0.15, len4: 0, turn: true, pickups: 0, ordered: false, bus: 0, walls: [0, 0], steps: 3 },
+  { ch: 1, scene: '小区窄巷', size: 6, cars: [4, 5], block: 3, len3: 0.2, len4: 0, turn: true, pickups: 1, easyPickup: true, ordered: false, bus: 0, walls: [0, 1], steps: 4 },
   { ch: 2, scene: '学校门口', size: 6, cars: [4, 5], block: 3, len3: 0.2, len4: 0, turn: true, pickups: 1, ordered: false, bus: 0, walls: [0, 1], steps: 4 },
   { ch: 3, scene: '写字楼', size: 6, cars: [5, 6], block: 3, len3: 0.25, len4: 0.1, turn: true, pickups: 1, ordered: false, bus: 0, walls: [1, 1], steps: 5 },
   { ch: 4, scene: '商场卸货区', size: 6, cars: [6, 7], block: 4, len3: 0.4, len4: 0.15, turn: true, pickups: 2, ordered: true, bus: 0, walls: [2, 2], steps: 5 },
@@ -148,10 +148,11 @@ export function makeCandidate(cfg, rng, stats) {
     const pickups = [];
     let pg = 0;
     while (pickups.length < cfg.pickups && pg++ < 80) {
-      // 转向关：乘客全图可放（红车可纵向机动）；非转向关：仅英雄行上下相邻行
-      const y = cfg.turn ? Math.floor(rng() * def.h) : exitRow + (rng() < 0.5 ? -1 : 1);
+      // 路边接人（简单）：乘客在出口行旁、红车顺路接到，不专程绕
+      // 转向关：乘客全图可放；非转向关：仅英雄行上下相邻行
+      const y = cfg.easyPickup || !cfg.turn ? exitRow + (rng() < 0.5 ? -1 : 1) : Math.floor(rng() * def.h);
       if (y < 0 || y >= def.h) continue;
-      const x = Math.floor(rng() * def.w);
+      const x = cfg.easyPickup ? 2 + Math.floor(rng() * Math.max(1, def.w - 3)) : Math.floor(rng() * def.w);
       if (occupied.has(x + ',' + y)) continue;
       if (pickups.some(p => p.x === x && p.y === y)) continue;
       if (heroCells.some(([hx, hy]) => Math.abs(hx - x) + Math.abs(hy - y) <= 1)) continue;
