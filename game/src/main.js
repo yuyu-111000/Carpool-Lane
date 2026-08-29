@@ -3,9 +3,11 @@
 import { createLevel, initialState, cloneState } from './rules/board.js';
 import { slideTargets, applyMove } from './rules/move.js';
 import { gateOpen, isWin } from './rules/goal.js';
-import { LEVELS } from './levels.data.js';
+import { LEVELS, DAILY } from './levels.data.js';
 import { Renderer } from './render.js';
 import { Input } from './input.js';
+import { hintFor } from './hint.js';
+import { sfx, unlockAudio } from './fx.js';
 
 const canvas = document.getElementById('game');
 const renderer = new Renderer(canvas);
@@ -23,7 +25,10 @@ const ui = {
   restart: document.getElementById('btn-restart'),
   back: document.getElementById('btn-back'),
   start: document.getElementById('btn-start'),
+  daily: document.getElementById('btn-daily'),
+  streak: document.getElementById('streak'),
   helpBtn: document.getElementById('btn-help'),
+  hintBtn: document.getElementById('btn-hint'),
   helpClose: document.getElementById('btn-help-close'),
   win: document.getElementById('win-screen'),
   winStars: document.getElementById('win-stars'),
@@ -37,7 +42,7 @@ let game = null;
 let screen = 'title';
 let lastT = 0;
 
-// ---------- 星级存档 ----------
+// ---------- 星级/连胜存档 ----------
 const store = {
   all() {
     try { return JSON.parse(localStorage.getItem('cl_stars') || '{}'); } catch { return {}; }
@@ -46,6 +51,15 @@ const store = {
     const m = this.all();
     m[id] = Math.max(m[id] || 0, s);
     try { localStorage.setItem('cl_stars', JSON.stringify(m)); } catch {}
+  },
+  meta() {
+    try { return JSON.parse(localStorage.getItem('cl_meta') || '{"streak":0}'); } catch { return { streak: 0 }; }
+  },
+  bumpStreak() {
+    const m = this.meta();
+    m.streak = (m.streak || 0) + 1;
+    try { localStorage.setItem('cl_meta', JSON.stringify(m)); } catch {}
+    return m.streak;
   },
 };
 
@@ -65,6 +79,9 @@ function startLevel(def) {
     now: performance.now(),
     won: false,
     dragPreview: null,
+    hintCar: null,
+    hintUntil: 0,
+    hintsLeft: 3,
   };
   screen = 'level';
   ui.title.style.display = 'none';
@@ -85,6 +102,7 @@ function startLevel(def) {
 
 function updateHud() {
   ui.moves.textContent = String(game.moves);
+  if (ui.hintBtn) ui.hintBtn.textContent = `提示${game.hintsLeft > 0 ? '·' + game.hintsLeft : ''}`;
 }
 
 function tryMove(carId, target) {
@@ -93,9 +111,11 @@ function tryMove(carId, target) {
   const targets = slideTargets(g.level, g.state, carId);
   if (!targets.includes(target)) return;
   const before = cloneState(g.state);
+  const gateBefore = gateOpen(g.level, g.state);
   const ns = applyMove(g.level, g.state, carId, target);
   g.state = ns;
   g.moves++;
+  sfx.move();
   g.anims[carId] = { from: { x: before.cars[carId].x, y: before.cars[carId].y }, t0: performance.now(), dur: 130 };
   for (const c of g.level.cars) {
     if (c.bus && (before.cars[c.id].x !== ns.cars[c.id].x || before.cars[c.id].y !== ns.cars[c.id].y)) {
@@ -109,6 +129,8 @@ function tryMove(carId, target) {
       pickedNow = true;
     }
   }
+  if (pickedNow) sfx.pickup();
+  if (!gateBefore && gateOpen(g.level, g.state)) sfx.gate();
   // 提示消除：首关首次移动后 / 接到第一个乘客后
   if (g.def.id === 1) setHint(null);
   if (pickedNow) setHint('道闸开了！开出右出口');
@@ -120,6 +142,13 @@ function onWin() {
   const g = game;
   g.won = true;
   setHint(null);
+  sfx.win();
+  const streak = store.bumpStreak();
+  // 冲出动画：英雄车滑出右出口
+  const hero = g.level.hero;
+  const from = { ...g.state.cars[hero.id] };
+  g.state.cars[hero.id] = { x: g.level.w, y: from.y };
+  g.anims[hero.id] = { from, t0: performance.now(), dur: 420 };
   const gate = { x: Math.max(0, Math.min(g.level.exit.x, g.level.w - 1)), y: g.level.exit.y };
   renderer.burst(g.level, gate.x, gate.y, '#ffd640');
   const stars = g.moves <= g.def.par ? 3 : g.moves <= g.def.par + 2 ? 2 : 1;
@@ -127,11 +156,11 @@ function onWin() {
   setTimeout(() => {
     ui.win.style.display = 'flex';
     ui.winStars.textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
-    ui.winStats.innerHTML = `本局 <b>${g.moves}</b> 步 · 3★ 标杆 <b>${g.def.par}</b> 步`;
+    ui.winStats.innerHTML = `本局 <b>${g.moves}</b> 步 · 3★ 标杆 <b>${g.def.par}</b> 步 · 连胜 <b>${streak}</b>`;
     ui.winText.textContent = stars === 3 ? '师傅，稳！' : stars === 2 ? '还行，再抠两步？' : '能出去就行（笑）';
     const hasNext = LEVELS.find(l => l.id === g.def.id + 1);
     ui.next.style.display = hasNext ? 'inline-block' : 'none';
-  }, 350);
+  }, 500);
 }
 
 // ---------- 输入回调 ----------
@@ -205,11 +234,27 @@ ui.next.addEventListener('click', () => {
 ui.back2.addEventListener('click', () => { ui.win.style.display = 'none'; });
 ui.helpBtn.addEventListener('click', () => { ui.help.style.display = 'flex'; });
 ui.helpClose.addEventListener('click', () => { ui.help.style.display = 'none'; });
+ui.hintBtn.addEventListener('click', () => {
+  if (!game || game.won || game.hintsLeft <= 0) return;
+  const mv = hintFor(game.level, game.state);
+  if (!mv) return;
+  game.hintsLeft--;
+  game.hintCar = mv[0];
+  game.hintUntil = performance.now() + 2500;
+  sfx.hint();
+  updateHud();
+});
+ui.daily.addEventListener('click', () => {
+  const day = Math.floor(Date.now() / 86400000);
+  const def = DAILY[day % DAILY.length];
+  startLevel(def);
+});
 ui.start.addEventListener('click', () => {
   const stars = store.all();
   const first = LEVELS.find(l => !stars[l.id]) || LEVELS[0];
   startLevel(first);
 });
+canvas.addEventListener('pointerdown', unlockAudio, { once: false });
 
 function showTitle() {
   ui.title.style.display = 'flex';
@@ -218,6 +263,8 @@ function showTitle() {
   ui.help.style.display = 'none';
   setHint(null);
   const stars = store.all();
+  const streak = store.meta().streak || 0;
+  if (ui.streak) ui.streak.textContent = streak > 0 ? `当前连胜 ${streak}` : '从零开始，跑起第一单';
   ui.levelList.innerHTML = '';
   for (const def of LEVELS) {
     const st = stars[def.id] || 0;
@@ -245,6 +292,7 @@ function frame(t) {
     const view = {
       gateOpen: gateOpen(game.level, game.state),
       selectedId: game.selectedId,
+      hintCar: game.hintUntil > t ? game.hintCar : null,
       anims: game.anims,
       now: t,
     };

@@ -52,12 +52,16 @@ def apply(level, state, car_id, t):
     isH = car["dir"] == "h"
     ns = {"cars": {k: dict(v) for k, v in state["cars"].items()}, "picked": list(state["picked"])}
     ns["cars"][car_id]["x" if isH else "y"] = t
-    # 接人：英雄车任一格与未接乘客曼哈顿距离 1
+    # 接人：英雄车任一格与未接乘客曼哈顿距离 1（按序接送：只接当前应接者）
     hero = next(c for c in level["cars"] if c.get("role") == "hero")
     hp = ns["cars"][hero["id"]]
     for pk in level.get("pickups", []):
         if pk["id"] in ns["picked"]:
             continue
+        if pk.get("order") is not None:
+            pending = sorted([q for q in level["pickups"] if q["id"] not in ns["picked"]], key=lambda q: q["order"])
+            if pending[0]["id"] != pk["id"]:
+                continue
         if any(abs(cx - pk["x"]) + abs(cy - pk["y"]) == 1 for cx, cy in cells(hero, hp["x"], hp["y"])):
             ns["picked"].append(pk["id"])
     # 班车推进

@@ -146,6 +146,7 @@
   <div id="hud">
     <div id="level-name"></div>
     <div class="hud-btns">
+      <button class="btn sec" id="btn-hint">提示·3</button>
       <button class="btn sec" id="btn-help">玩法</button>
       <button class="btn sec" id="btn-restart">重开</button>
       <button class="btn sec" id="btn-back">选关</button>
@@ -171,6 +172,7 @@
       <h1>挪车！师傅</h1>
       <div class="lane"></div>
       <p class="tag">顺路捎人 · 腾出活路</p>
+      <p class="tag" id="streak" style="color:var(--amber);margin-top:6px"></p>
     </div>
     <section class="howto">
       <h2>怎么玩</h2>
@@ -216,7 +218,10 @@
     <div class="lane" style="max-width:560px"></div>
     <h2 class="road-title" style="max-width:420px;width:100%">选择关卡</h2>
     <div id="level-list" class="road"></div>
-    <button class="btn primary" id="btn-start">开始游戏</button>
+    <div style="display:flex;gap:12px">
+      <button class="btn primary" id="btn-start">开始游戏</button>
+      <button class="btn" id="btn-daily">每日挑战</button>
+    </div>
   </div>
 
   <div class="overlay dim" id="help-screen">
@@ -325,19 +330,19 @@ function cloneState(s) {
   return { cars, picked: s.picked.slice() };
 }
 
-// 状态键：用于 BFS 去重。"坐标用一位字母编码" —— 7x7 内够用（0-7）
+// 状态键：数值打包（坐标 0-7 用 8 进制位，乘客位图 4 bit）——比字符串快一个量级
 function stateKey(level, s) {
-  const parts = level.cars.map(c => {
+  let key = 0;
+  for (let i = 0; i < level.cars.length; i++) {
+    const c = level.cars[i];
     const p = s.cars[c.id];
-    const v = c.dir === 'h' ? p.x : p.y;
-    return v.toString(36);
-  });
-  let picked = '';
-  if (level.pickups.length) {
-    const mask = level.pickups.map(p => (s.picked.includes(p.id) ? '1' : '0')).join('');
-    picked = '|' + mask;
+    key = key * 8 + (c.dir === 'h' ? p.x : p.y);
   }
-  return parts.join('') + picked;
+  let pm = 0;
+  for (let i = 0; i < level.pickups.length; i++) {
+    if (s.picked.includes(level.pickups[i].id)) pm |= 1 << i;
+  }
+  return key * 16 + pm;
 }
 
 // 占用网格：返回 Map "x,y" -> carId（只统计车身，乘客格不占）
@@ -503,72 +508,5620 @@ function isWin(level, s) {
   return carCells({ ...hero, x: hp.x, y: hp.y }).some(c => c.x === g.x && c.y === g.y);
 }
 
-/* ===== src/levels.data.js ===== */
-// levels.data.js —— 原型关卡（G1/G2 验证用；Day2 由管线产出 50 关替换）
-// par 由求解器写入；narrowness = 最优解路径数（越少体感越难）
+/* ===== tools/solver.js ===== */
+// solver.js —— BFS 求解器（关卡生产管线与内置提示共用）
+// 能力：可解性 / 最优步数 par / 解路径 / 每车必要性 / 解路径窄度
+// 注意：无班车关卡状态图是无向的（移动可逆），窄度用反向 BFS；班车关卡窄度置 null。
 
+
+
+
+// 前向 BFS。levelDef 为关卡定义；opts.from 可指定起始状态（提示功能用）。
+// 返回 { solvable, par, path, explored }，path 为 [carId, target] 步骤数组（不含起点）
+function solve(levelDef, opts = {}) {
+  const level = typeof levelDef.createLevel === 'function' ? levelDef : createLevel(levelDef);
+  const start = opts.from ? cloneState(opts.from) : initialState(level);
+  const maxStates = opts.maxStates || 2_000_000;
+
+  const startKey = stateKey(level, start);
+  const dist = new Map([[startKey, 0]]);
+  const prev = new Map(); // key -> { key: 前驱, move: [carId, target] }
+  const queue = [start];
+  let head = 0;
+  let winKey = null;
+
+  while (head < queue.length) {
+    const s = queue[head++];
+    const k = stateKey(level, s);
+    if (isWin(level, s)) { winKey = k; break; }
+    if (dist.size > maxStates) return { solvable: null, par: null, path: null, explored: dist.size, overflow: true };
+
+    for (const car of level.cars) {
+      if (car.bus) continue;
+      for (const t of slideTargets(level, s, car.id)) {
+        const ns = applyMove(level, s, car.id, t);
+        const nk = stateKey(level, ns);
+        if (dist.has(nk)) continue;
+        dist.set(nk, dist.get(k) + 1);
+        prev.set(nk, { key: k, move: [car.id, t] });
+        queue.push(ns);
+      }
+    }
+  }
+
+  if (!winKey) return { solvable: false, par: null, path: null, explored: dist.size };
+
+  const path = [];
+  let k = winKey;
+  while (k !== startKey) {
+    const p = prev.get(k);
+    if (!p) break;
+    path.unshift(p.move);
+    k = p.key;
+  }
+  return { solvable: true, par: dist.get(winKey), path, explored: dist.size };
+}
+
+// 每车必要性：删掉某车后 par 不下降 => 该车是装饰车（与解题难度无关）。
+// 数学事实：删车只会释放空间，base 可解 ⟹ 删任意车后仍可解（原解去掉该车步骤仍合法）。
+// 因此判据用 par 对比：par(reduced) === par(base) ⟺ 装饰车。
+// 返回 { minimal, removable }（removable 为装饰车 id 列表，空 = 每车都贡献难度）
+function checkNecessity(levelDef) {
+  const base = solve(levelDef);
+  if (!base.solvable) return { minimal: false, removable: [], unsolvable: true };
+  const baseCars = Array.isArray(levelDef) ? levelDef : levelDef.cars;
+  const removable = [];
+  for (const c of baseCars) {
+    if (c.role === 'hero') continue;
+    const reduced = { ...levelDef, cars: baseCars.filter(x => x.id !== c.id) };
+    const r = solve(reduced);
+    if (!r.solvable) continue; // 理论不可能；防御性处理
+    if (r.par >= base.par) removable.push(c.id);
+  }
+  return { minimal: removable.length === 0, removable };
+}
+
+// 解路径窄度：长度恰为 par 的不同最优解路径条数（截断 500）。
+// 语义：同一 par 档内，最优解越少 = 解法越唯一 = 人类体感越难。
+// 仅无班车关卡（班车破坏移动可逆性）；有班车返回 null。
+function narrowness(levelDef, par) {
+  const level = typeof levelDef.createLevel === 'function' ? levelDef : createLevel(levelDef);
+  if (level.cars.some(c => c.bus)) return null;
+  const r = solve(level);
+  if (!r.solvable) return null;
+  const P = par ?? r.par;
+
+  // 前向枚举全部可达态，同时记录反向边（乘客接取不可逆，状态图是有向图，
+  // 不能假设对称——必须在反图上做反向 BFS 求 distToWin）
+  const rev = new Map(); // nk -> [k...]
+  const winKeys = [];
+  const seen = new Map([[stateKey(level, initialState(level)), 0]]);
+  const q2 = [initialState(level)];
+  let h2 = 0;
+  while (h2 < q2.length) {
+    const s = q2[h2++];
+    const k = stateKey(level, s);
+    if (isWin(level, s)) winKeys.push(k);
+    for (const car of level.cars) {
+      for (const t of slideTargets(level, s, car.id)) {
+        const ns = applyMove(level, s, car.id, t);
+        const nk = stateKey(level, ns);
+        let arr = rev.get(nk);
+        if (!arr) { arr = []; rev.set(nk, arr); }
+        arr.push(k);
+        if (!seen.has(nk)) { seen.set(nk, 1); q2.push(ns); }
+      }
+    }
+  }
+  const distToWin = new Map();
+  const queue = [];
+  for (const wk of winKeys) { distToWin.set(wk, 0); queue.push(wk); }
+  let hb = 0;
+  while (hb < queue.length) {
+    const k = queue[hb++];
+    const d = distToWin.get(k);
+    for (const p of rev.get(k) || []) {
+      if (!distToWin.has(p)) { distToWin.set(p, d + 1); queue.push(p); }
+    }
+  }
+
+  // 记忆化 DP 计数：恰 P 步到达胜利态的路径数（指数→多项式），上限 500
+  const CAP = 500;
+  const memo = new Map();
+  const ways = (s, depth) => {
+    const k = stateKey(level, s);
+    const dw = distToWin.get(k);
+    if (dw === undefined) return 0; // 到不了胜利的态：剪掉
+    if (dw === 0) return depth === P ? 1 : 0;
+    if (depth + dw > P) return 0;
+    const mk = k * 64 + depth;
+    const hit = memo.get(mk);
+    if (hit !== undefined) return hit;
+    let total = 0;
+    outer: for (const car of level.cars) {
+      for (const t of slideTargets(level, s, car.id)) {
+        const ns = applyMove(level, s, car.id, t);
+        total += ways(ns, depth + 1);
+        if (total >= CAP) { total = CAP; break outer; }
+      }
+    }
+    memo.set(mk, total);
+    return total;
+  };
+  return ways(initialState(level), 0);
+}
+
+// 组合入口：管线用
+function analyzeLevel(levelDef) {
+  const r = solve(levelDef);
+  if (!r.solvable) return { solvable: false, explored: r.explored };
+  const nec = checkNecessity(levelDef);
+  const nar = narrowness(levelDef, r.par);
+  return {
+    solvable: true,
+    par: r.par,
+    path: r.path,
+    minimal: nec.minimal,
+    removable: nec.removable,
+    narrowness: nar,
+    explored: r.explored,
+  };
+}
+
+// CLI：node tools/solver.js <level.json 路径>
+if (typeof process !== 'undefined' && process.argv[1] && process.argv[1].endsWith('solver.js')) {
+  (async () => {
+    const fs = await import('node:fs');
+    const file = process.argv[2];
+    if (!file) {
+      console.error('usage: node tools/solver.js <level.json>');
+      process.exit(2);
+    }
+    const def = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const t0 = Date.now();
+    const result = analyzeLevel(def);
+    console.log(JSON.stringify({ ...result, path: undefined, ms: Date.now() - t0 }, null, 2));
+  })();
+}
+
+/* ===== src/levels.data.js ===== */
+// levels.data.js —— 由 tools/pipeline.js 生成（seed=20260828），勿手改
 const LEVELS = [
-  {
-    id: 1, chapter: 1, name: '小区窄巷 · 出车', quote: '手刹一松，就走。',
-    w: 6, h: 6, exit: { x: 6, y: 2 },
-    cars: [
-      { id: 'R', x: 3, y: 2, len: 2, dir: 'h', role: 'hero' },
-    ],
-    pickups: [], walls: [], par: 1, narrowness: 1,
+ {
+  "id": 1,
+  "chapter": 1,
+  "name": "小区窄巷 · 出车",
+  "quote": "这谁停的车？",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
   },
-  {
-    id: 2, chapter: 1, name: '小区窄巷 · 一挡', quote: '这谁停的车？',
-    w: 6, h: 6, exit: { x: 6, y: 2 },
-    cars: [
-      { id: 'R', x: 0, y: 2, len: 2, dir: 'h', role: 'hero' },
-      { id: 'a', x: 2, y: 2, len: 2, dir: 'v' },
-    ],
-    pickups: [], walls: [], par: 2, narrowness: 3,
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 2,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [],
+  "walls": [],
+  "par": 1,
+  "narrowness": 0
+ },
+ {
+  "id": 2,
+  "chapter": 1,
+  "name": "小区窄巷 · 一挡",
+  "quote": "技术活儿，赏口饭吃。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
   },
-  {
-    id: 3, chapter: 1, name: '小区窄巷 · 三挡', quote: '技术活儿，赏口饭吃。',
-    w: 6, h: 6, exit: { x: 6, y: 2 },
-    cars: [
-      { id: 'R', x: 0, y: 2, len: 2, dir: 'h', role: 'hero' },
-      { id: 'p', x: 2, y: 2, len: 2, dir: 'v' },
-      { id: 'q', x: 3, y: 2, len: 2, dir: 'v' },
-      { id: 's', x: 4, y: 1, len: 2, dir: 'v' },
-    ],
-    pickups: [], walls: [], par: 4, narrowness: 8,
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c3",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [],
+  "walls": [],
+  "par": 1,
+  "narrowness": 0
+ },
+ {
+  "id": 3,
+  "chapter": 1,
+  "name": "小区窄巷 · 双挡",
+  "quote": "手刹一松，就走。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
   },
-  {
-    id: 4, chapter: 2, name: '学校门口 · 接娃', quote: '娃在路边等着呢。',
-    w: 6, h: 6, exit: { x: 6, y: 2 },
-    cars: [
-      { id: 'R', x: 0, y: 2, len: 2, dir: 'h', role: 'hero' },
-      { id: 'a', x: 3, y: 0, len: 3, dir: 'v' },
-    ],
-    pickups: [{ id: 'p1', x: 2, y: 3 }],
-    walls: [], par: 3, narrowness: 2,
+  "cars": [
+   {
+    "id": "R",
+    "x": 1,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c3",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c4",
+    "x": 2,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [],
+  "walls": [],
+  "par": 1,
+  "narrowness": 0
+ },
+ {
+  "id": 4,
+  "chapter": 1,
+  "name": "小区窄巷 · 让行",
+  "quote": "稍等，倒一下车。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
   },
-  {
-    id: 5, chapter: 2, name: '学校门口 · 倒车接人', quote: '稍等，倒一下车。',
-    w: 6, h: 6, exit: { x: 6, y: 2 },
-    cars: [
-      { id: 'R', x: 2, y: 2, len: 2, dir: 'h', role: 'hero' },
-      { id: 'a', x: 4, y: 2, len: 2, dir: 'v' },
-    ],
-    pickups: [{ id: 'p1', x: 0, y: 3 }],
-    walls: [], par: 3, narrowness: 2,
+  "cars": [
+   {
+    "id": "R",
+    "x": 1,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c3",
+    "x": 2,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c4",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [],
+  "walls": [],
+  "par": 1,
+  "narrowness": 0
+ },
+ {
+  "id": 5,
+  "chapter": 1,
+  "name": "小区窄巷 · 倒把",
+  "quote": "娃在路边等着呢。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
   },
-  {
-    id: 6, chapter: 2, name: '学校门口 · 挤一挤', quote: '上车都上车！',
-    w: 6, h: 6, exit: { x: 6, y: 2 },
-    cars: [
-      { id: 'R', x: 0, y: 2, len: 2, dir: 'h', role: 'hero' },
-      { id: 'p', x: 2, y: 2, len: 2, dir: 'v' },
-      { id: 'q', x: 3, y: 2, len: 2, dir: 'v' },
-      { id: 's', x: 4, y: 1, len: 2, dir: 'v' },
-    ],
-    pickups: [{ id: 'p1', x: 5, y: 3 }],
-    walls: [], par: 4, narrowness: 8,
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [],
+  "walls": [],
+  "par": 2,
+  "narrowness": 0
+ },
+ {
+  "id": 6,
+  "chapter": 1,
+  "name": "小区窄巷 · 三挡",
+  "quote": "都坐稳了！",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
   },
+  "cars": [
+   {
+    "id": "R",
+    "x": 1,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 3,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c3",
+    "x": 5,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [],
+  "walls": [],
+  "par": 2,
+  "narrowness": 0
+ },
+ {
+  "id": 7,
+  "chapter": 1,
+  "name": "小区窄巷 · 错车",
+  "quote": "让一让，让一让。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c3",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 5,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [],
+  "walls": [],
+  "par": 2,
+  "narrowness": 0
+ },
+ {
+  "id": 8,
+  "chapter": 1,
+  "name": "小区窄巷 · 贴墙",
+  "quote": "这巷子比上回窄了？",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 5,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [],
+  "walls": [],
+  "par": 1,
+  "narrowness": 0
+ },
+ {
+  "id": 9,
+  "chapter": 1,
+  "name": "小区窄巷 · 连环挡",
+  "quote": "乘客就是上帝，上车。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c4",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [],
+  "walls": [],
+  "par": 2,
+  "narrowness": 0
+ },
+ {
+  "id": 10,
+  "chapter": 1,
+  "name": "小区窄巷 · 巷尾冲刺",
+  "quote": "班车别挤我！",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 3,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c3",
+    "x": 0,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c4",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 5,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [],
+  "walls": [],
+  "par": 3,
+  "narrowness": 0
+ },
+ {
+  "id": 11,
+  "chapter": 2,
+  "name": "学校门口 · 接娃",
+  "quote": "墙是昨天新砌的？",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 2,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c4",
+    "x": 5,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 5,
+    "y": 3
+   }
+  ],
+  "walls": [
+   {
+    "x": 0,
+    "y": 5
+   }
+  ],
+  "par": 3,
+  "narrowness": 0
+ },
+ {
+  "id": 12,
+  "chapter": 2,
+  "name": "学校门口 · 捎上",
+  "quote": "出口就在前头。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 1,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 0,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c4",
+    "x": 3,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 3,
+    "y": 1
+   }
+  ],
+  "walls": [],
+  "par": 3,
+  "narrowness": 0
+ },
+ {
+  "id": 13,
+  "chapter": 2,
+  "name": "学校门口 · 倒接",
+  "quote": "一把轮的事儿。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 5,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 0,
+    "y": 4,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c4",
+    "x": 3,
+    "y": 4,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 3,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 3
+   }
+  ],
+  "walls": [],
+  "par": 3,
+  "narrowness": 0
+ },
+ {
+  "id": 14,
+  "chapter": 2,
+  "name": "学校门口 · 绕路",
+  "quote": "稳字当头。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 2,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 4,
+    "y": 1
+   }
+  ],
+  "walls": [],
+  "par": 2,
+  "narrowness": 0
+ },
+ {
+  "id": 15,
+  "chapter": 2,
+  "name": "学校门口 · 路边见",
+  "quote": "油门当刹车？不存在的。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 3,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c4",
+    "x": 5,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 5,
+    "y": 3
+   }
+  ],
+  "walls": [
+   {
+    "x": 2,
+    "y": 5
+   }
+  ],
+  "par": 4,
+  "narrowness": 0
+ },
+ {
+  "id": 16,
+  "chapter": 2,
+  "name": "学校门口 · 放学铃",
+  "quote": "这谁停的车？",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 1,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 2,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 3,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 4,
+    "y": 3
+   }
+  ],
+  "walls": [],
+  "par": 4,
+  "narrowness": 0
+ },
+ {
+  "id": 17,
+  "chapter": 2,
+  "name": "学校门口 · 别催",
+  "quote": "技术活儿，赏口饭吃。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 3,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 0,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 5,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 4,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 3,
+    "y": 1
+   }
+  ],
+  "walls": [
+   {
+    "x": 5,
+    "y": 5
+   }
+  ],
+  "par": 4,
+  "narrowness": 0
+ },
+ {
+  "id": 18,
+  "chapter": 2,
+  "name": "学校门口 · 就一位",
+  "quote": "手刹一松，就走。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 4,
+    "y": 3
+   }
+  ],
+  "walls": [],
+  "par": 3,
+  "narrowness": 0
+ },
+ {
+  "id": 19,
+  "chapter": 2,
+  "name": "学校门口 · 齐活",
+  "quote": "稍等，倒一下车。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 4,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 3,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 5,
+    "y": 3
+   }
+  ],
+  "walls": [
+   {
+    "x": 3,
+    "y": 3
+   }
+  ],
+  "par": 4,
+  "narrowness": 0
+ },
+ {
+  "id": 20,
+  "chapter": 2,
+  "name": "学校门口 · 关门走人",
+  "quote": "娃在路边等着呢。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 5,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 3,
+    "y": 1
+   }
+  ],
+  "walls": [],
+  "par": 5,
+  "narrowness": 0
+ },
+ {
+  "id": 21,
+  "chapter": 3,
+  "name": "写字楼 · 早高峰",
+  "quote": "都坐稳了！",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 2,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 3,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 5,
+    "y": 3
+   }
+  ],
+  "walls": [
+   {
+    "x": 3,
+    "y": 1
+   }
+  ],
+  "par": 3,
+  "narrowness": 0
+ },
+ {
+  "id": 22,
+  "chapter": 3,
+  "name": "写字楼 · 班车来了",
+  "quote": "让一让，让一让。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 4,
+    "y": 3
+   }
+  ],
+  "walls": [
+   {
+    "x": 5,
+    "y": 3
+   }
+  ],
+  "par": 4,
+  "narrowness": 0
+ },
+ {
+  "id": 23,
+  "chapter": 3,
+  "name": "写字楼 · 掐点",
+  "quote": "这巷子比上回窄了？",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 0,
+    "y": 3,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 4,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 1
+   }
+  ],
+  "walls": [
+   {
+    "x": 0,
+    "y": 5
+   }
+  ],
+  "par": 4,
+  "narrowness": 0
+ },
+ {
+  "id": 24,
+  "chapter": 3,
+  "name": "写字楼 · 借道",
+  "quote": "乘客就是上帝，上车。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 5,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 0,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 5,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 4,
+    "y": 3
+   }
+  ],
+  "walls": [
+   {
+    "x": 3,
+    "y": 3
+   }
+  ],
+  "par": 2,
+  "narrowness": 0
+ },
+ {
+  "id": 25,
+  "chapter": 3,
+  "name": "写字楼 · 别挤",
+  "quote": "班车别挤我！",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 5,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 1,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 3,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 1
+   }
+  ],
+  "walls": [
+   {
+    "x": 3,
+    "y": 3
+   }
+  ],
+  "par": 4,
+  "narrowness": 0
+ },
+ {
+  "id": 26,
+  "chapter": 3,
+  "name": "写字楼 · 电梯口",
+  "quote": "墙是昨天新砌的？",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 5,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 0,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 5,
+    "y": 1
+   }
+  ],
+  "walls": [
+   {
+    "x": 3,
+    "y": 5
+   }
+  ],
+  "par": 4,
+  "narrowness": 0
+ },
+ {
+  "id": 27,
+  "chapter": 3,
+  "name": "写字楼 · 打卡",
+  "quote": "出口就在前头。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 1,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c4",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 5,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 1
+   }
+  ],
+  "walls": [
+   {
+    "x": 2,
+    "y": 3
+   }
+  ],
+  "par": 5,
+  "narrowness": 0
+ },
+ {
+  "id": 28,
+  "chapter": 3,
+  "name": "写字楼 · 跟车",
+  "quote": "一把轮的事儿。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 4,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 3,
+    "y": 1
+   }
+  ],
+  "walls": [
+   {
+    "x": 2,
+    "y": 3
+   }
+  ],
+  "par": 3,
+  "narrowness": 0
+ },
+ {
+  "id": 29,
+  "chapter": 3,
+  "name": "写字楼 · 错峰",
+  "quote": "稳字当头。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c4",
+    "x": 2,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 3,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 1
+   }
+  ],
+  "walls": [
+   {
+    "x": 0,
+    "y": 4
+   }
+  ],
+  "par": 5,
+  "narrowness": 0
+ },
+ {
+  "id": 30,
+  "chapter": 3,
+  "name": "写字楼 · 顶流",
+  "quote": "油门当刹车？不存在的。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 1,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 3,
+    "y": 1
+   }
+  ],
+  "walls": [
+   {
+    "x": 5,
+    "y": 4
+   }
+  ],
+  "par": 6,
+  "narrowness": 0
+ },
+ {
+  "id": 31,
+  "chapter": 4,
+  "name": "商场卸货区 · 卸货区",
+  "quote": "这谁停的车？",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 3,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 5,
+    "y": 3,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 4,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 1,
+    "y": 1
+   },
+   {
+    "x": 1,
+    "y": 4
+   }
+  ],
+  "par": 5,
+  "narrowness": 0
+ },
+ {
+  "id": 32,
+  "chapter": 4,
+  "name": "商场卸货区 · 叉车呢",
+  "quote": "技术活儿，赏口饭吃。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 5,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 3,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 2,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 3,
+    "y": 5
+   },
+   {
+    "x": 1,
+    "y": 5
+   }
+  ],
+  "par": 5,
+  "narrowness": 0
+ },
+ {
+  "id": 33,
+  "chapter": 4,
+  "name": "商场卸货区 · 大场子",
+  "quote": "手刹一松，就走。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 4,
+    "y": 3,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 5,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 3,
+    "y": 1
+   }
+  ],
+  "par": 6,
+  "narrowness": 0
+ },
+ {
+  "id": 34,
+  "chapter": 4,
+  "name": "商场卸货区 · 墙后有人",
+  "quote": "稍等，倒一下车。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 5,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 5,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 3,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 2,
+    "y": 1,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 1,
+    "y": 5
+   },
+   {
+    "x": 2,
+    "y": 0
+   }
+  ],
+  "par": 5,
+  "narrowness": 0
+ },
+ {
+  "id": 35,
+  "chapter": 4,
+  "name": "商场卸货区 · 班车接力",
+  "quote": "娃在路边等着呢。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 5,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 4,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 3,
+    "y": 2,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 3,
+    "y": 1,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 4,
+    "y": 5
+   }
+  ],
+  "par": 6,
+  "narrowness": 0
+ },
+ {
+  "id": 36,
+  "chapter": 4,
+  "name": "商场卸货区 · 窄门",
+  "quote": "都坐稳了！",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 2,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 5,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 3,
+    "y": 1,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 1,
+    "y": 1
+   }
+  ],
+  "par": 6,
+  "narrowness": 0
+ },
+ {
+  "id": 37,
+  "chapter": 4,
+  "name": "商场卸货区 · 货梯",
+  "quote": "让一让，让一让。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 2,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 4,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 4,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 3,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 3,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 1,
+    "y": 3
+   }
+  ],
+  "par": 6,
+  "narrowness": 0
+ },
+ {
+  "id": 38,
+  "chapter": 4,
+  "name": "商场卸货区 · 加塞",
+  "quote": "这巷子比上回窄了？",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 3,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 5,
+    "y": 3,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 2,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 1,
+    "y": 5
+   }
+  ],
+  "par": 5,
+  "narrowness": 0
+ },
+ {
+  "id": 39,
+  "chapter": 4,
+  "name": "商场卸货区 · 清场",
+  "quote": "乘客就是上帝，上车。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 4,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 5,
+    "y": 0,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 1,
+    "y": 4,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 2,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 3,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 4,
+    "y": 1,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 0,
+    "y": 3
+   }
+  ],
+  "par": 7,
+  "narrowness": 0
+ },
+ {
+  "id": 40,
+  "chapter": 4,
+  "name": "商场卸货区 · 双乘客",
+  "quote": "班车别挤我！",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 5,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c9",
+    "x": 5,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 4,
+    "y": 3,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 2,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 0,
+    "y": 5
+   }
+  ],
+  "par": 7,
+  "narrowness": 0
+ },
+ {
+  "id": 41,
+  "chapter": 5,
+  "name": "机场高速 · 登机口",
+  "quote": "墙是昨天新砌的？",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 3,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 5,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 0,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 3,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 3,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 4,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 2,
+    "y": 1
+   },
+   {
+    "x": 0,
+    "y": 0
+   }
+  ],
+  "par": 4,
+  "narrowness": 0
+ },
+ {
+  "id": 42,
+  "chapter": 5,
+  "name": "机场高速 · 按序上车",
+  "quote": "出口就在前头。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 4,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 2,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 5,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 5,
+    "y": 5
+   },
+   {
+    "x": 0,
+    "y": 5
+   }
+  ],
+  "par": 5,
+  "narrowness": 0
+ },
+ {
+  "id": 43,
+  "chapter": 5,
+  "name": "机场高速 · 两位贵宾",
+  "quote": "一把轮的事儿。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 2,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c9",
+    "x": 5,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 4,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 3,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 2,
+    "y": 5
+   },
+   {
+    "x": 4,
+    "y": 3
+   }
+  ],
+  "par": 6,
+  "narrowness": 0
+ },
+ {
+  "id": 44,
+  "chapter": 5,
+  "name": "机场高速 · 红眼航班",
+  "quote": "稳字当头。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 5,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 3,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 4,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 3,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 4,
+    "y": 3
+   },
+   {
+    "x": 2,
+    "y": 4
+   }
+  ],
+  "par": 3,
+  "narrowness": 0
+ },
+ {
+  "id": 45,
+  "chapter": 5,
+  "name": "机场高速 · 行李呢",
+  "quote": "油门当刹车？不存在的。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 1,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 4,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 5,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 2,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 0,
+    "y": 3,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 3,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 5,
+    "y": 1
+   },
+   {
+    "x": 1,
+    "y": 1
+   }
+  ],
+  "par": 6,
+  "narrowness": 0
+ },
+ {
+  "id": 46,
+  "chapter": 5,
+  "name": "机场高速 · 廊桥",
+  "quote": "这谁停的车？",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 4,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 2,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c8",
+    "x": 2,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c10",
+    "x": 5,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 3,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 5,
+    "y": 1,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 1,
+    "y": 5
+   },
+   {
+    "x": 2,
+    "y": 1
+   }
+  ],
+  "par": 6,
+  "narrowness": 0
+ },
+ {
+  "id": 47,
+  "chapter": 5,
+  "name": "机场高速 · 摆渡",
+  "quote": "技术活儿，赏口饭吃。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 1,
+    "y": 4,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c9",
+    "x": 0,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 3,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 2,
+    "y": 1,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 2,
+    "y": 0
+   },
+   {
+    "x": 4,
+    "y": 5
+   }
+  ],
+  "par": 6,
+  "narrowness": 0
+ },
+ {
+  "id": 48,
+  "chapter": 5,
+  "name": "机场高速 · 最后一位",
+  "quote": "手刹一松，就走。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 5,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 5,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c9",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 3,
+    "y": 3,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 2,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 0,
+    "y": 5
+   },
+   {
+    "x": 1,
+    "y": 0
+   }
+  ],
+  "par": 3,
+  "narrowness": 0
+ },
+ {
+  "id": 49,
+  "chapter": 5,
+  "name": "机场高速 · 加时赛",
+  "quote": "稍等，倒一下车。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 4,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 4,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c9",
+    "x": 2,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 3,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 2,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 0,
+    "y": 5
+   },
+   {
+    "x": 5,
+    "y": 0
+   }
+  ],
+  "par": 7,
+  "narrowness": 0
+ },
+ {
+  "id": 50,
+  "chapter": 5,
+  "name": "机场高速 · 起飞",
+  "quote": "娃在路边等着呢。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 3,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 5,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 2,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 0,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 3,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 2,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 3,
+    "y": 4
+   },
+   {
+    "x": 1,
+    "y": 4
+   }
+  ],
+  "par": 7,
+  "narrowness": 0
+ }
 ];
+const DAILY = [
+ {
+  "id": 101,
+  "chapter": 0,
+  "name": "每日挑战 · 1",
+  "quote": "都坐稳了！",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 5,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 3,
+    "y": 3,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 3
+   }
+  ],
+  "walls": [
+   {
+    "x": 4,
+    "y": 4
+   }
+  ],
+  "par": 2,
+  "narrowness": 0
+ },
+ {
+  "id": 102,
+  "chapter": 0,
+  "name": "每日挑战 · 2",
+  "quote": "让一让，让一让。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 2,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 5,
+    "y": 3,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 3,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 2,
+    "y": 1
+   }
+  ],
+  "par": 7,
+  "narrowness": 0
+ },
+ {
+  "id": 103,
+  "chapter": 0,
+  "name": "每日挑战 · 3",
+  "quote": "这巷子比上回窄了？",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 1,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c4",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 3,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 4,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 3,
+    "y": 3
+   }
+  ],
+  "walls": [
+   {
+    "x": 5,
+    "y": 0
+   }
+  ],
+  "par": 4,
+  "narrowness": 0
+ },
+ {
+  "id": 104,
+  "chapter": 0,
+  "name": "每日挑战 · 4",
+  "quote": "乘客就是上帝，上车。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 5,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 5,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 2,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 2,
+    "y": 5,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c9",
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 3,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 4,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 1,
+    "y": 3
+   },
+   {
+    "x": 3,
+    "y": 0
+   }
+  ],
+  "par": 2,
+  "narrowness": 0
+ },
+ {
+  "id": 105,
+  "chapter": 0,
+  "name": "每日挑战 · 5",
+  "quote": "班车别挤我！",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 3,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 5,
+    "y": 1
+   }
+  ],
+  "walls": [
+   {
+    "x": 5,
+    "y": 0
+   }
+  ],
+  "par": 2,
+  "narrowness": 0
+ },
+ {
+  "id": 106,
+  "chapter": 0,
+  "name": "每日挑战 · 6",
+  "quote": "墙是昨天新砌的？",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 5,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 0,
+    "y": 3,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 2,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c5",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 3
+   }
+  ],
+  "walls": [
+   {
+    "x": 4,
+    "y": 4
+   }
+  ],
+  "par": 6,
+  "narrowness": 0
+ },
+ {
+  "id": 107,
+  "chapter": 0,
+  "name": "每日挑战 · 7",
+  "quote": "出口就在前头。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 4,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 5,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 2,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 2,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 1,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c9",
+    "x": 4,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 4,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 5,
+    "y": 1,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 1,
+    "y": 0
+   },
+   {
+    "x": 1,
+    "y": 5
+   }
+  ],
+  "par": 6,
+  "narrowness": 0
+ },
+ {
+  "id": 108,
+  "chapter": 0,
+  "name": "每日挑战 · 8",
+  "quote": "一把轮的事儿。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 4,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 3,
+    "y": 2,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 4,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 2,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 2,
+    "y": 1
+   }
+  ],
+  "walls": [
+   {
+    "x": 5,
+    "y": 1
+   }
+  ],
+  "par": 5,
+  "narrowness": 0
+ },
+ {
+  "id": 109,
+  "chapter": 0,
+  "name": "每日挑战 · 9",
+  "quote": "稳字当头。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 2,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 0,
+    "y": 0,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 1,
+    "y": 4,
+    "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 0,
+    "y": 5,
+    "len": 2,
+    "dir": "h"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 5,
+    "y": 3
+   }
+  ],
+  "walls": [
+   {
+    "x": 5,
+    "y": 5
+   }
+  ],
+  "par": 2,
+  "narrowness": 0
+ },
+ {
+  "id": 110,
+  "chapter": 0,
+  "name": "每日挑战 · 10",
+  "quote": "油门当刹车？不存在的。",
+  "w": 6,
+  "h": 6,
+  "exit": {
+   "x": 6,
+   "y": 2
+  },
+  "cars": [
+   {
+    "id": "R",
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h",
+    "role": "hero"
+   },
+   {
+    "id": "c1",
+    "x": 5,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c2",
+    "x": 4,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c3",
+    "x": 3,
+    "y": 2,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c4",
+    "x": 1,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c5",
+    "x": 2,
+    "y": 2,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c7",
+    "x": 3,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c8",
+    "x": 3,
+    "y": 0,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c9",
+    "x": 1,
+    "y": 4,
+    "len": 2,
+    "dir": "v"
+   }
+  ],
+  "pickups": [
+   {
+    "id": "p1",
+    "x": 5,
+    "y": 1,
+    "order": 1
+   },
+   {
+    "id": "p2",
+    "x": 5,
+    "y": 3,
+    "order": 2
+   }
+  ],
+  "walls": [
+   {
+    "x": 2,
+    "y": 0
+   }
+  ],
+  "par": 5,
+  "narrowness": 0
+ }
+];
+
+/* ===== src/hint.js ===== */
+// hint.js —— 内置 AI 提示：与管线同源的求解器，给出当前局面最优解的第一步
+
+function hintFor(level, state) {
+  const r = solve(level, { from: state });
+  return r.solvable && r.path && r.path.length ? r.path[0] : null;
+}
+
+/* ===== src/fx.js ===== */
+// fx.js —— WebAudio 程序合成音效（零资源依赖）+ 首次手势解锁
+let ac = null;
+
+function unlockAudio() {
+  if (!ac) {
+    try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { ac = null; }
+  }
+  if (ac && ac.state === 'suspended') ac.resume();
+}
+
+function tone(freq, dur, type, gain, delay, slideTo) {
+  if (!ac) return;
+  const t0 = ac.currentTime + (delay || 0);
+  const o = ac.createOscillator();
+  const g = ac.createGain();
+  o.type = type || 'square';
+  o.frequency.setValueAtTime(freq, t0);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+  g.gain.setValueAtTime(gain || 0.06, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(ac.destination);
+  o.start(t0);
+  o.stop(t0 + dur + 0.02);
+}
+
+const sfx = {
+  move() { tone(180, 0.07, 'triangle', 0.05, 0, 140); },
+  pickup() { tone(660, 0.09, 'square', 0.05); tone(880, 0.12, 'square', 0.05, 0.09); },
+  gate() { tone(320, 0.25, 'sawtooth', 0.04, 0, 520); },
+  win() {
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, 'square', 0.05, i * 0.09));
+  },
+  hint() { tone(980, 0.08, 'sine', 0.05); },
+};
 
 /* ===== src/render.js ===== */
 // render.js —— Canvas 渲染（原型版：棋盘/车/乘客/道闸/粒子）
@@ -719,6 +6272,11 @@ class Renderer {
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 3;
       roundRect(ctx, px, py, wpx, hpx, 8);
+      ctx.stroke();
+    } else if (view.hintCar === car.id) {
+      ctx.strokeStyle = `rgba(255,184,0,${0.5 + 0.4 * Math.sin(this.time / 120)})`;
+      ctx.lineWidth = 4;
+      roundRect(ctx, px - 2, py - 2, wpx + 4, hpx + 4, 9);
       ctx.stroke();
     } else {
       ctx.strokeStyle = 'rgba(0,0,0,0.25)';
@@ -946,6 +6504,8 @@ class Input {
 
 
 
+
+
 const canvas = document.getElementById('game');
 const renderer = new Renderer(canvas);
 const ui = {
@@ -962,7 +6522,10 @@ const ui = {
   restart: document.getElementById('btn-restart'),
   back: document.getElementById('btn-back'),
   start: document.getElementById('btn-start'),
+  daily: document.getElementById('btn-daily'),
+  streak: document.getElementById('streak'),
   helpBtn: document.getElementById('btn-help'),
+  hintBtn: document.getElementById('btn-hint'),
   helpClose: document.getElementById('btn-help-close'),
   win: document.getElementById('win-screen'),
   winStars: document.getElementById('win-stars'),
@@ -976,7 +6539,7 @@ let game = null;
 let screen = 'title';
 let lastT = 0;
 
-// ---------- 星级存档 ----------
+// ---------- 星级/连胜存档 ----------
 const store = {
   all() {
     try { return JSON.parse(localStorage.getItem('cl_stars') || '{}'); } catch { return {}; }
@@ -985,6 +6548,15 @@ const store = {
     const m = this.all();
     m[id] = Math.max(m[id] || 0, s);
     try { localStorage.setItem('cl_stars', JSON.stringify(m)); } catch {}
+  },
+  meta() {
+    try { return JSON.parse(localStorage.getItem('cl_meta') || '{"streak":0}'); } catch { return { streak: 0 }; }
+  },
+  bumpStreak() {
+    const m = this.meta();
+    m.streak = (m.streak || 0) + 1;
+    try { localStorage.setItem('cl_meta', JSON.stringify(m)); } catch {}
+    return m.streak;
   },
 };
 
@@ -1004,6 +6576,9 @@ function startLevel(def) {
     now: performance.now(),
     won: false,
     dragPreview: null,
+    hintCar: null,
+    hintUntil: 0,
+    hintsLeft: 3,
   };
   screen = 'level';
   ui.title.style.display = 'none';
@@ -1024,6 +6599,7 @@ function startLevel(def) {
 
 function updateHud() {
   ui.moves.textContent = String(game.moves);
+  if (ui.hintBtn) ui.hintBtn.textContent = `提示${game.hintsLeft > 0 ? '·' + game.hintsLeft : ''}`;
 }
 
 function tryMove(carId, target) {
@@ -1032,9 +6608,11 @@ function tryMove(carId, target) {
   const targets = slideTargets(g.level, g.state, carId);
   if (!targets.includes(target)) return;
   const before = cloneState(g.state);
+  const gateBefore = gateOpen(g.level, g.state);
   const ns = applyMove(g.level, g.state, carId, target);
   g.state = ns;
   g.moves++;
+  sfx.move();
   g.anims[carId] = { from: { x: before.cars[carId].x, y: before.cars[carId].y }, t0: performance.now(), dur: 130 };
   for (const c of g.level.cars) {
     if (c.bus && (before.cars[c.id].x !== ns.cars[c.id].x || before.cars[c.id].y !== ns.cars[c.id].y)) {
@@ -1048,6 +6626,8 @@ function tryMove(carId, target) {
       pickedNow = true;
     }
   }
+  if (pickedNow) sfx.pickup();
+  if (!gateBefore && gateOpen(g.level, g.state)) sfx.gate();
   // 提示消除：首关首次移动后 / 接到第一个乘客后
   if (g.def.id === 1) setHint(null);
   if (pickedNow) setHint('道闸开了！开出右出口');
@@ -1059,6 +6639,13 @@ function onWin() {
   const g = game;
   g.won = true;
   setHint(null);
+  sfx.win();
+  const streak = store.bumpStreak();
+  // 冲出动画：英雄车滑出右出口
+  const hero = g.level.hero;
+  const from = { ...g.state.cars[hero.id] };
+  g.state.cars[hero.id] = { x: g.level.w, y: from.y };
+  g.anims[hero.id] = { from, t0: performance.now(), dur: 420 };
   const gate = { x: Math.max(0, Math.min(g.level.exit.x, g.level.w - 1)), y: g.level.exit.y };
   renderer.burst(g.level, gate.x, gate.y, '#ffd640');
   const stars = g.moves <= g.def.par ? 3 : g.moves <= g.def.par + 2 ? 2 : 1;
@@ -1066,11 +6653,11 @@ function onWin() {
   setTimeout(() => {
     ui.win.style.display = 'flex';
     ui.winStars.textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
-    ui.winStats.innerHTML = `本局 <b>${g.moves}</b> 步 · 3★ 标杆 <b>${g.def.par}</b> 步`;
+    ui.winStats.innerHTML = `本局 <b>${g.moves}</b> 步 · 3★ 标杆 <b>${g.def.par}</b> 步 · 连胜 <b>${streak}</b>`;
     ui.winText.textContent = stars === 3 ? '师傅，稳！' : stars === 2 ? '还行，再抠两步？' : '能出去就行（笑）';
     const hasNext = LEVELS.find(l => l.id === g.def.id + 1);
     ui.next.style.display = hasNext ? 'inline-block' : 'none';
-  }, 350);
+  }, 500);
 }
 
 // ---------- 输入回调 ----------
@@ -1144,11 +6731,27 @@ ui.next.addEventListener('click', () => {
 ui.back2.addEventListener('click', () => { ui.win.style.display = 'none'; });
 ui.helpBtn.addEventListener('click', () => { ui.help.style.display = 'flex'; });
 ui.helpClose.addEventListener('click', () => { ui.help.style.display = 'none'; });
+ui.hintBtn.addEventListener('click', () => {
+  if (!game || game.won || game.hintsLeft <= 0) return;
+  const mv = hintFor(game.level, game.state);
+  if (!mv) return;
+  game.hintsLeft--;
+  game.hintCar = mv[0];
+  game.hintUntil = performance.now() + 2500;
+  sfx.hint();
+  updateHud();
+});
+ui.daily.addEventListener('click', () => {
+  const day = Math.floor(Date.now() / 86400000);
+  const def = DAILY[day % DAILY.length];
+  startLevel(def);
+});
 ui.start.addEventListener('click', () => {
   const stars = store.all();
   const first = LEVELS.find(l => !stars[l.id]) || LEVELS[0];
   startLevel(first);
 });
+canvas.addEventListener('pointerdown', unlockAudio, { once: false });
 
 function showTitle() {
   ui.title.style.display = 'flex';
@@ -1157,6 +6760,8 @@ function showTitle() {
   ui.help.style.display = 'none';
   setHint(null);
   const stars = store.all();
+  const streak = store.meta().streak || 0;
+  if (ui.streak) ui.streak.textContent = streak > 0 ? `当前连胜 ${streak}` : '从零开始，跑起第一单';
   ui.levelList.innerHTML = '';
   for (const def of LEVELS) {
     const st = stars[def.id] || 0;
@@ -1184,6 +6789,7 @@ function frame(t) {
     const view = {
       gateOpen: gateOpen(game.level, game.state),
       selectedId: game.selectedId,
+      hintCar: game.hintUntil > t ? game.hintCar : null,
       anims: game.anims,
       now: t,
     };

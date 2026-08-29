@@ -12,7 +12,10 @@ const ORDER = [
   'src/rules/board.js',
   'src/rules/move.js',
   'src/rules/goal.js',
+  'tools/solver.js',
   'src/levels.data.js',
+  'src/hint.js',
+  'src/fx.js',
   'src/render.js',
   'src/input.js',
   'src/main.js',
@@ -220,6 +223,7 @@ const TEMPLATE = html => `<!DOCTYPE html>
   <div id="hud">
     <div id="level-name"></div>
     <div class="hud-btns">
+      <button class="btn sec" id="btn-hint">提示·3</button>
       <button class="btn sec" id="btn-help">玩法</button>
       <button class="btn sec" id="btn-restart">重开</button>
       <button class="btn sec" id="btn-back">选关</button>
@@ -245,6 +249,7 @@ const TEMPLATE = html => `<!DOCTYPE html>
       <h1>挪车！师傅</h1>
       <div class="lane"></div>
       <p class="tag">顺路捎人 · 腾出活路</p>
+      <p class="tag" id="streak" style="color:var(--amber);margin-top:6px"></p>
     </div>
     <section class="howto">
       <h2>怎么玩</h2>
@@ -253,7 +258,10 @@ const TEMPLATE = html => `<!DOCTYPE html>
     <div class="lane" style="max-width:560px"></div>
     <h2 class="road-title" style="max-width:420px;width:100%">选择关卡</h2>
     <div id="level-list" class="road"></div>
-    <button class="btn primary" id="btn-start">开始游戏</button>
+    <div style="display:flex;gap:12px">
+      <button class="btn primary" id="btn-start">开始游戏</button>
+      <button class="btn" id="btn-daily">每日挑战</button>
+    </div>
   </div>
 
   <div class="overlay dim" id="help-screen">

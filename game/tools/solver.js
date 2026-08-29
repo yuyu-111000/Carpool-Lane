@@ -81,65 +81,64 @@ export function narrowness(levelDef, par) {
   if (!r.solvable) return null;
   const P = par ?? r.par;
 
-  // 反向 BFS：从所有可达胜利态出发求 distToWin（无班车 => 边对称，applyMove 即可扩展）
-  const distToWin = new Map();
-  const queue = [];
+  // 前向枚举全部可达态，同时记录反向边（乘客接取不可逆，状态图是有向图，
+  // 不能假设对称——必须在反图上做反向 BFS 求 distToWin）
+  const rev = new Map(); // nk -> [k...]
+  const winKeys = [];
   const seen = new Map([[stateKey(level, initialState(level)), 0]]);
   const q2 = [initialState(level)];
   let h2 = 0;
   while (h2 < q2.length) {
     const s = q2[h2++];
     const k = stateKey(level, s);
-    if (isWin(level, s)) { distToWin.set(k, 0); queue.push(s); }
+    if (isWin(level, s)) winKeys.push(k);
     for (const car of level.cars) {
       for (const t of slideTargets(level, s, car.id)) {
         const ns = applyMove(level, s, car.id, t);
         const nk = stateKey(level, ns);
+        let arr = rev.get(nk);
+        if (!arr) { arr = []; rev.set(nk, arr); }
+        arr.push(k);
         if (!seen.has(nk)) { seen.set(nk, 1); q2.push(ns); }
       }
     }
   }
+  const distToWin = new Map();
+  const queue = [];
+  for (const wk of winKeys) { distToWin.set(wk, 0); queue.push(wk); }
   let hb = 0;
   while (hb < queue.length) {
-    const s = queue[hb++];
-    const k = stateKey(level, s);
+    const k = queue[hb++];
     const d = distToWin.get(k);
-    for (const car of level.cars) {
-      for (const t of slideTargets(level, s, car.id)) {
-        const ns = applyMove(level, s, car.id, t);
-        const nk = stateKey(level, ns);
-        if (!distToWin.has(nk)) { distToWin.set(nk, d + 1); queue.push(ns); }
-      }
+    for (const p of rev.get(k) || []) {
+      if (!distToWin.has(p)) { distToWin.set(p, d + 1); queue.push(p); }
     }
   }
 
-  // 受限 DFS 计数：恰好 P 步到达胜利态的路径数（上限 500）
+  // 记忆化 DP 计数：恰 P 步到达胜利态的路径数（指数→多项式），上限 500
   const CAP = 500;
-  let count = 0;
-  let stop = false;
-  const dfs = (s, depth) => {
-    if (stop) return;
+  const memo = new Map();
+  const ways = (s, depth) => {
     const k = stateKey(level, s);
-    if (distToWin.get(k) === 0) {
-      if (depth === P) count++;
-      if (count >= CAP) stop = true;
-      return;
-    }
-    if (depth >= P) return;
-    for (const car of level.cars) {
+    const dw = distToWin.get(k);
+    if (dw === undefined) return 0; // 到不了胜利的态：剪掉
+    if (dw === 0) return depth === P ? 1 : 0;
+    if (depth + dw > P) return 0;
+    const mk = k * 64 + depth;
+    const hit = memo.get(mk);
+    if (hit !== undefined) return hit;
+    let total = 0;
+    outer: for (const car of level.cars) {
       for (const t of slideTargets(level, s, car.id)) {
         const ns = applyMove(level, s, car.id, t);
-        const nk = stateKey(level, ns);
-        const dw = distToWin.get(nk);
-        if (dw == null) continue;
-        if (depth + 1 + dw > P) continue;
-        dfs(ns, depth + 1);
-        if (stop) return;
+        total += ways(ns, depth + 1);
+        if (total >= CAP) { total = CAP; break outer; }
       }
     }
+    memo.set(mk, total);
+    return total;
   };
-  dfs(initialState(level), 0);
-  return count;
+  return ways(initialState(level), 0);
 }
 
 // 组合入口：管线用
@@ -159,16 +158,18 @@ export function analyzeLevel(levelDef) {
   };
 }
 
-// CLI：node tools/solver.js <level.json 路径或 stdin>
-if (process.argv[1] && process.argv[1].endsWith('solver.js')) {
-  const fs = await import('node:fs');
-  const file = process.argv[2];
-  if (!file) {
-    console.error('usage: node tools/solver.js <level.json>');
-    process.exit(2);
-  }
-  const def = JSON.parse(fs.readFileSync(file, 'utf8'));
-  const t0 = Date.now();
-  const result = analyzeLevel(def);
-  console.log(JSON.stringify({ ...result, path: undefined, ms: Date.now() - t0 }, null, 2));
+// CLI：node tools/solver.js <level.json 路径>
+if (typeof process !== 'undefined' && process.argv[1] && process.argv[1].endsWith('solver.js')) {
+  (async () => {
+    const fs = await import('node:fs');
+    const file = process.argv[2];
+    if (!file) {
+      console.error('usage: node tools/solver.js <level.json>');
+      process.exit(2);
+    }
+    const def = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const t0 = Date.now();
+    const result = analyzeLevel(def);
+    console.log(JSON.stringify({ ...result, path: undefined, ms: Date.now() - t0 }, null, 2));
+  })();
 }

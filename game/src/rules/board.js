@@ -43,19 +43,19 @@ export function cloneState(s) {
   return { cars, picked: s.picked.slice() };
 }
 
-// 状态键：用于 BFS 去重。"坐标用一位字母编码" —— 7x7 内够用（0-7）
+// 状态键：数值打包（坐标 0-7 用 8 进制位，乘客位图 4 bit）——比字符串快一个量级
 export function stateKey(level, s) {
-  const parts = level.cars.map(c => {
+  let key = 0;
+  for (let i = 0; i < level.cars.length; i++) {
+    const c = level.cars[i];
     const p = s.cars[c.id];
-    const v = c.dir === 'h' ? p.x : p.y;
-    return v.toString(36);
-  });
-  let picked = '';
-  if (level.pickups.length) {
-    const mask = level.pickups.map(p => (s.picked.includes(p.id) ? '1' : '0')).join('');
-    picked = '|' + mask;
+    key = key * 8 + (c.dir === 'h' ? p.x : p.y);
   }
-  return parts.join('') + picked;
+  let pm = 0;
+  for (let i = 0; i < level.pickups.length; i++) {
+    if (s.picked.includes(level.pickups[i].id)) pm |= 1 << i;
+  }
+  return key * 16 + pm;
 }
 
 // 占用网格：返回 Map "x,y" -> carId（只统计车身，乘客格不占）

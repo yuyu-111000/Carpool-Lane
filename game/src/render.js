@@ -147,6 +147,11 @@ export class Renderer {
       ctx.lineWidth = 3;
       roundRect(ctx, px, py, wpx, hpx, 8);
       ctx.stroke();
+    } else if (view.hintCar === car.id) {
+      ctx.strokeStyle = `rgba(255,184,0,${0.5 + 0.4 * Math.sin(this.time / 120)})`;
+      ctx.lineWidth = 4;
+      roundRect(ctx, px - 2, py - 2, wpx + 4, hpx + 4, 9);
+      ctx.stroke();
     } else {
       ctx.strokeStyle = 'rgba(0,0,0,0.25)';
       ctx.lineWidth = 2;
