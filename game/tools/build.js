@@ -73,6 +73,16 @@ const HOWTO = `
       <b>顺路捎人</b>
       <span>有乘客的关卡：先开到乘客旁接人，道闸才会抬起</span>
     </div>
+    <div class="howto-item">
+      <svg viewBox="0 0 120 64" aria-hidden="true">
+        <rect x="14" y="24" width="34" height="14" rx="3" fill="#e5484d"/>
+        <path d="M52 31 C 66 31 66 31 74 22" stroke="#FFB800" stroke-width="2.5" fill="none"/>
+        <path d="M74 22 l-7 0 M74 22 l-1 7" stroke="#FFB800" stroke-width="2.5" fill="none"/>
+        <rect x="76" y="14" width="14" height="34" rx="3" fill="#e5484d" opacity="0.55"/>
+      </svg>
+      <b>师傅掉头</b>
+      <span>垂直于车身方向拖动，红车原地 90° 转向，纵向机动去接人</span>
+    </div>
   </div>`;
 
 const TEMPLATE = html => `<!DOCTYPE html>
@@ -128,7 +138,9 @@ const TEMPLATE = html => `<!DOCTYPE html>
     gap: 4px 10px; align-items: center;
     padding: 10px 14px; font-size: 13px;
   }
-  #level-name { grid-area: name; font-weight: 800; font-size: 16px; letter-spacing: .5px; }
+  #level-name { font-weight: 800; font-size: 16px; letter-spacing: .5px; }
+  .name-wrap { grid-area: name; display: flex; align-items: center; gap: 6px; min-width: 0; }
+  #boss-chip { display: none; color: #0B0C0A; background: var(--amber); font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 2px; }
   .hud-btns { grid-area: btns; display: flex; gap: 8px; }
   .hud-btns .btn { padding: 7px 12px; font-size: 13px; }
   #sub { grid-area: sub; min-width: 0; }
@@ -178,7 +190,7 @@ const TEMPLATE = html => `<!DOCTYPE html>
     font-size: 14px; font-weight: 800; letter-spacing: 4px; color: var(--dim);
     text-align: left; margin-bottom: 12px;
   }
-  .howto-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .howto-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
   @media (max-width: 520px) { .howto-grid { grid-template-columns: 1fr; } }
   .howto-item {
     border: 1px solid var(--line); background: var(--panel);
@@ -209,6 +221,8 @@ const TEMPLATE = html => `<!DOCTYPE html>
   .level-btn .nm { width: 44%; margin-left: auto; text-align: left; font-size: 13px; color: var(--dim); }
   .level-btn .stars { font-size: 11px; color: var(--amber); letter-spacing: 1px; }
   .level-btn:active .node { background: var(--amber); }
+  .level-btn.boss .node { background: var(--amber); width: 20px; height: 20px; }
+  .level-btn.boss .nm { color: var(--amber); font-weight: 800; }
 
   /* 胜利屏 */
   #win-screen h2 { font-size: 26px; font-weight: 900; letter-spacing: 3px; }
@@ -221,7 +235,10 @@ const TEMPLATE = html => `<!DOCTYPE html>
 </head>
 <body>
   <div id="hud">
-    <div id="level-name"></div>
+    <div class="name-wrap">
+      <div id="level-name"></div>
+      <span id="boss-chip">大关</span>
+    </div>
     <div class="hud-btns">
       <button class="btn sec" id="btn-hint">提示·3</button>
       <button class="btn sec" id="btn-help">玩法</button>

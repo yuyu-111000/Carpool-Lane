@@ -58,9 +58,9 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 2,
-  "narrowness": 3
+  "narrowness": null
  },
  {
   "id": 2,
@@ -120,9 +120,9 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 2,
-  "narrowness": 3
+  "narrowness": null
  },
  {
   "id": 3,
@@ -189,9 +189,9 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 2,
-  "narrowness": 3
+  "narrowness": null
  },
  {
   "id": 4,
@@ -251,9 +251,9 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 2,
-  "narrowness": 3
+  "narrowness": null
  },
  {
   "id": 5,
@@ -320,9 +320,9 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 2,
-  "narrowness": 2
+  "narrowness": null
  },
  {
   "id": 6,
@@ -382,9 +382,9 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 3,
-  "narrowness": 6
+  "narrowness": null
  },
  {
   "id": 7,
@@ -444,9 +444,9 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 3,
-  "narrowness": 12
+  "narrowness": null
  },
  {
   "id": 8,
@@ -513,9 +513,9 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 2,
-  "narrowness": 2
+  "narrowness": null
  },
  {
   "id": 9,
@@ -575,9 +575,9 @@ export const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 3,
-  "narrowness": 4
+  "narrowness": null
  },
  {
   "id": 10,
@@ -601,86 +601,86 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
+    "x": 2,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 2,
+    "x": 5,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 3,
-    "y": 2,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 2,
+    "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 6,
-    "y": 2,
+    "x": 3,
+    "y": 6,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 2,
+    "y": 4,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c6",
-    "x": 1,
-    "y": 1,
-    "len": 4,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 2,
-    "y": 6,
-    "len": 4,
-    "dir": "h"
-   },
-   {
     "id": "c8",
-    "x": 0,
-    "y": 4,
+    "x": 5,
+    "y": 0,
     "len": 3,
     "dir": "v"
    },
    {
     "id": "c9",
-    "x": 3,
-    "y": 5,
-    "len": 3,
+    "x": 1,
+    "y": 0,
+    "len": 4,
     "dir": "h"
    },
    {
     "id": "c10",
-    "x": 4,
-    "y": 0,
-    "len": 3,
-    "dir": "h"
-   },
-   {
-    "id": "c11",
-    "x": 1,
-    "y": 4,
-    "len": 3,
+    "x": 0,
+    "y": 5,
+    "len": 2,
     "dir": "v"
    },
    {
+    "id": "c11",
+    "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
     "id": "c12",
-    "x": 4,
-    "y": 4,
-    "len": 3,
+    "x": 5,
+    "y": 5,
+    "len": 2,
     "dir": "h"
    }
   ],
@@ -688,19 +688,15 @@ export const LEVELS = [
   "walls": [
    {
     "x": 1,
-    "y": 0
+    "y": 4
    },
    {
-    "x": 0,
-    "y": 0
-   },
-   {
-    "x": 0,
+    "x": 6,
     "y": 2
    }
   ],
   "turn": false,
-  "par": 8,
+  "par": 13,
   "narrowness": null
  },
  {
@@ -1501,19 +1497,19 @@ export const LEVELS = [
  {
   "id": 20,
   "chapter": 2,
-  "name": "学校门口 · 关门走人",
+  "name": "学校门口 · 大关",
   "quote": "娃在路边等着呢。",
-  "w": 6,
-  "h": 6,
+  "w": 7,
+  "h": 7,
   "exit": {
-   "x": 6,
-   "y": 2
+   "x": 7,
+   "y": 3
   },
   "cars": [
    {
     "id": "R",
-    "x": 0,
-    "y": 2,
+    "x": 1,
+    "y": 3,
     "len": 2,
     "dir": "h",
     "role": "hero"
@@ -1527,8 +1523,8 @@ export const LEVELS = [
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 0,
+    "x": 2,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
@@ -1541,55 +1537,101 @@ export const LEVELS = [
    },
    {
     "id": "c4",
-    "x": 5,
-    "y": 4,
+    "x": 6,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 3,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 3,
+    "x": 1,
     "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 0,
-    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c6",
+    "x": 4,
+    "y": 5,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 3,
+    "y": 1,
+    "len": 4,
+    "dir": "h"
+   },
+   {
     "id": "c8",
-    "x": 1,
+    "x": 0,
+    "y": 0,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 4,
     "y": 0,
     "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 6,
+    "y": 4,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c11",
+    "x": 2,
+    "y": 6,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c12",
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c13",
+    "x": 1,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c14",
+    "x": 5,
+    "y": 4,
+    "len": 3,
     "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 0
+    "x": 4,
+    "y": 4
    }
   ],
   "walls": [
+   {
+    "x": 4,
+    "y": 2
+   },
    {
     "x": 0,
     "y": 5
    }
   ],
-  "turn": true,
-  "par": 9,
+  "turn": false,
+  "par": 7,
   "narrowness": null
  },
  {
@@ -2462,124 +2504,95 @@ export const LEVELS = [
  {
   "id": 30,
   "chapter": 3,
-  "name": "写字楼 · 大关",
+  "name": "写字楼 · 顶流",
   "quote": "油门当刹车？不存在的。",
-  "w": 7,
-  "h": 7,
+  "w": 6,
+  "h": 6,
   "exit": {
-   "x": 7,
-   "y": 3
+   "x": 6,
+   "y": 2
   },
   "cars": [
    {
     "id": "R",
     "x": 0,
-    "y": 3,
+    "y": 2,
     "len": 2,
     "dir": "h",
     "role": "hero"
    },
    {
     "id": "c1",
-    "x": 6,
-    "y": 2,
+    "x": 5,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
+    "x": 2,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 3,
+    "x": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
     "x": 5,
-    "y": 3,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 3,
-    "y": 2,
+    "x": 0,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c6",
-    "x": 3,
-    "y": 5,
-    "len": 4,
+    "x": 4,
+    "y": 0,
+    "len": 2,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 0,
-    "y": 0,
-    "len": 3,
+    "x": 3,
+    "y": 4,
+    "len": 2,
     "dir": "h"
    },
    {
     "id": "c8",
-    "x": 2,
-    "y": 6,
-    "len": 4,
-    "dir": "h"
-   },
-   {
-    "id": "c9",
-    "x": 3,
-    "y": 1,
-    "len": 3,
-    "dir": "h"
-   },
-   {
-    "id": "c10",
-    "x": 0,
-    "y": 4,
-    "len": 3,
+    "x": 1,
+    "y": 3,
+    "len": 2,
     "dir": "v"
-   },
-   {
-    "id": "c11",
-    "x": 4,
-    "y": 0,
-    "len": 3,
-    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
     "x": 2,
-    "y": 2
+    "y": 5
    }
   ],
   "walls": [
    {
-    "x": 1,
+    "x": 4,
     "y": 1
-   },
-   {
-    "x": 6,
-    "y": 4
-   },
-   {
-    "x": 1,
-    "y": 4
    }
   ],
-  "turn": false,
-  "par": 16,
+  "turn": true,
+  "par": 11,
   "narrowness": null
  },
  {
@@ -3703,79 +3716,93 @@ export const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 0,
+    "x": 6,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 6,
+    "x": 3,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 3,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
     "x": 4,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c5",
-    "x": 3,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c5",
+    "x": 0,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
     "id": "c6",
+    "x": 5,
+    "y": 5,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
     "x": 1,
-    "y": 6,
+    "y": 1,
     "len": 4,
     "dir": "h"
    },
    {
-    "id": "c7",
-    "x": 2,
+    "id": "c8",
+    "x": 0,
     "y": 5,
     "len": 3,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 6,
-    "y": 0,
-    "len": 3,
-    "dir": "v"
-   },
-   {
     "id": "c9",
-    "x": 2,
-    "y": 1,
-    "len": 3,
+    "x": 5,
+    "y": 0,
+    "len": 2,
     "dir": "h"
    },
    {
     "id": "c10",
-    "x": 0,
-    "y": 0,
-    "len": 3,
-    "dir": "v"
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
    },
    {
     "id": "c11",
-    "x": 5,
-    "y": 4,
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c12",
+    "x": 0,
+    "y": 6,
     "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c13",
+    "x": 2,
+    "y": 3,
+    "len": 2,
     "dir": "v"
    }
   ],
@@ -3788,27 +3815,27 @@ export const LEVELS = [
    },
    {
     "id": "p2",
-    "x": 3,
+    "x": 6,
     "y": 4,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 1,
-    "y": 1
+    "x": 4,
+    "y": 6
    },
    {
     "x": 3,
-    "y": 0
+    "y": 2
    },
    {
-    "x": 4,
-    "y": 2
+    "x": 0,
+    "y": 1
    }
   ],
   "turn": false,
-  "par": 24,
+  "par": 27,
   "narrowness": null
  },
  {
@@ -4934,138 +4961,127 @@ export const LEVELS = [
  {
   "id": 50,
   "chapter": 5,
-  "name": "机场高速 · 大关",
+  "name": "机场高速 · 起飞",
   "quote": "娃在路边等着呢。",
-  "w": 7,
-  "h": 7,
+  "w": 6,
+  "h": 6,
   "exit": {
-   "x": 7,
-   "y": 3
+   "x": 6,
+   "y": 2
   },
   "cars": [
    {
     "id": "R",
     "x": 0,
-    "y": 3,
+    "y": 2,
     "len": 2,
     "dir": "h",
     "role": "hero"
    },
    {
     "id": "c1",
-    "x": 3,
-    "y": 3,
+    "x": 4,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 6,
-    "y": 3,
+    "x": 5,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 4,
-    "y": 3,
+    "x": 2,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 2,
-    "y": 1,
+    "x": 3,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 5,
+    "x": 0,
     "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c6",
-    "x": 3,
-    "y": 6,
-    "len": 4,
+    "id": "c7",
+    "x": 0,
+    "y": 5,
+    "len": 3,
     "dir": "h"
    },
    {
-    "id": "c7",
-    "x": 1,
-    "y": 0,
-    "len": 3,
-    "dir": "v"
-   },
-   {
     "id": "c8",
-    "x": 2,
-    "y": 3,
-    "len": 3,
-    "dir": "v"
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
    },
    {
     "id": "c9",
-    "x": 4,
-    "y": 1,
+    "x": 1,
+    "y": 0,
     "len": 3,
     "dir": "h"
    },
    {
     "id": "c10",
-    "x": 0,
-    "y": 0,
-    "len": 3,
+    "x": 4,
+    "y": 4,
+    "len": 2,
     "dir": "v"
    },
    {
     "id": "c11",
-    "x": 4,
-    "y": 0,
-    "len": 3,
-    "dir": "h"
-   },
-   {
-    "id": "c12",
-    "x": 1,
-    "y": 4,
-    "len": 3,
+    "x": 5,
+    "y": 2,
+    "len": 2,
     "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 6,
-    "y": 2,
+    "x": 4,
+    "y": 3,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 4,
-    "y": 2,
+    "x": 2,
+    "y": 4,
     "order": 2
    }
   ],
   "walls": [
    {
+    "x": 2,
+    "y": 3
+   },
+   {
     "x": 3,
-    "y": 0
-   },
-   {
-    "x": 0,
-    "y": 4
-   },
-   {
-    "x": 5,
     "y": 5
    }
   ],
-  "turn": false,
-  "par": 11,
+  "turn": true,
+  "par": 16,
   "narrowness": null
  }
 ];

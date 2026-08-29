@@ -5,12 +5,12 @@
       "ch": 1,
       "parRange": [
         2,
-        8
+        13
       ],
       "stats": {
-        "attempts": 73,
+        "attempts": 22,
         "rejectLayout": 0,
-        "rejectUnsolvable": 59,
+        "rejectUnsolvable": 7,
         "rejectPar": 0,
         "rejectBus": 0,
         "pruned": 0
@@ -26,19 +26,19 @@
         3,
         2,
         3,
-        8
+        13
       ]
     },
     {
       "ch": 2,
       "parRange": [
         4,
-        9
+        7
       ],
       "stats": {
-        "attempts": 73,
-        "rejectLayout": 3,
-        "rejectUnsolvable": 58,
+        "attempts": 23,
+        "rejectLayout": 0,
+        "rejectUnsolvable": 10,
         "rejectPar": 0,
         "rejectBus": 0,
         "pruned": 0
@@ -54,19 +54,19 @@
         7,
         4,
         9,
-        9
+        7
       ]
     },
     {
       "ch": 3,
       "parRange": [
         6,
-        16
+        11
       ],
       "stats": {
-        "attempts": 72,
-        "rejectLayout": 2,
-        "rejectUnsolvable": 55,
+        "attempts": 22,
+        "rejectLayout": 0,
+        "rejectUnsolvable": 10,
         "rejectPar": 0,
         "rejectBus": 0,
         "pruned": 0
@@ -82,19 +82,19 @@
         9,
         6,
         11,
-        16
+        11
       ]
     },
     {
       "ch": 4,
       "parRange": [
         10,
-        24
+        27
       ],
       "stats": {
-        "attempts": 87,
-        "rejectLayout": 19,
-        "rejectUnsolvable": 52,
+        "attempts": 37,
+        "rejectLayout": 0,
+        "rejectUnsolvable": 24,
         "rejectPar": 0,
         "rejectBus": 0,
         "pruned": 0
@@ -110,19 +110,19 @@
         17,
         7,
         17,
-        24
+        27
       ]
     },
     {
       "ch": 5,
       "parRange": [
         12,
-        11
+        16
       ],
       "stats": {
-        "attempts": 203,
-        "rejectLayout": 13,
-        "rejectUnsolvable": 175,
+        "attempts": 153,
+        "rejectLayout": 8,
+        "rejectUnsolvable": 133,
         "rejectPar": 0,
         "rejectBus": 0,
         "pruned": 0
@@ -138,10 +138,10 @@
         16,
         9,
         16,
-        11
+        16
       ]
     }
   ],
-  "startedAt": "2026-08-29T07:51:55.169Z",
+  "startedAt": "2026-08-29T09:39:53.869Z",
   "elapsedMs": 0
 }

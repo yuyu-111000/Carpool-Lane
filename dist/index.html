@@ -51,7 +51,9 @@
     gap: 4px 10px; align-items: center;
     padding: 10px 14px; font-size: 13px;
   }
-  #level-name { grid-area: name; font-weight: 800; font-size: 16px; letter-spacing: .5px; }
+  #level-name { font-weight: 800; font-size: 16px; letter-spacing: .5px; }
+  .name-wrap { grid-area: name; display: flex; align-items: center; gap: 6px; min-width: 0; }
+  #boss-chip { display: none; color: #0B0C0A; background: var(--amber); font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 2px; }
   .hud-btns { grid-area: btns; display: flex; gap: 8px; }
   .hud-btns .btn { padding: 7px 12px; font-size: 13px; }
   #sub { grid-area: sub; min-width: 0; }
@@ -101,7 +103,7 @@
     font-size: 14px; font-weight: 800; letter-spacing: 4px; color: var(--dim);
     text-align: left; margin-bottom: 12px;
   }
-  .howto-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .howto-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
   @media (max-width: 520px) { .howto-grid { grid-template-columns: 1fr; } }
   .howto-item {
     border: 1px solid var(--line); background: var(--panel);
@@ -132,6 +134,8 @@
   .level-btn .nm { width: 44%; margin-left: auto; text-align: left; font-size: 13px; color: var(--dim); }
   .level-btn .stars { font-size: 11px; color: var(--amber); letter-spacing: 1px; }
   .level-btn:active .node { background: var(--amber); }
+  .level-btn.boss .node { background: var(--amber); width: 20px; height: 20px; }
+  .level-btn.boss .nm { color: var(--amber); font-weight: 800; }
 
   /* 胜利屏 */
   #win-screen h2 { font-size: 26px; font-weight: 900; letter-spacing: 3px; }
@@ -144,7 +148,10 @@
 </head>
 <body>
   <div id="hud">
-    <div id="level-name"></div>
+    <div class="name-wrap">
+      <div id="level-name"></div>
+      <span id="boss-chip">大关</span>
+    </div>
     <div class="hud-btns">
       <button class="btn sec" id="btn-hint">提示·3</button>
       <button class="btn sec" id="btn-help">玩法</button>
@@ -213,6 +220,16 @@
       <b>顺路捎人</b>
       <span>有乘客的关卡：先开到乘客旁接人，道闸才会抬起</span>
     </div>
+    <div class="howto-item">
+      <svg viewBox="0 0 120 64" aria-hidden="true">
+        <rect x="14" y="24" width="34" height="14" rx="3" fill="#e5484d"/>
+        <path d="M52 31 C 66 31 66 31 74 22" stroke="#FFB800" stroke-width="2.5" fill="none"/>
+        <path d="M74 22 l-7 0 M74 22 l-1 7" stroke="#FFB800" stroke-width="2.5" fill="none"/>
+        <rect x="76" y="14" width="14" height="34" rx="3" fill="#e5484d" opacity="0.55"/>
+      </svg>
+      <b>师傅掉头</b>
+      <span>垂直于车身方向拖动，红车原地 90° 转向，纵向机动去接人</span>
+    </div>
   </div>
     </section>
     <div class="lane" style="max-width:560px"></div>
@@ -263,6 +280,16 @@
       </svg>
       <b>顺路捎人</b>
       <span>有乘客的关卡：先开到乘客旁接人，道闸才会抬起</span>
+    </div>
+    <div class="howto-item">
+      <svg viewBox="0 0 120 64" aria-hidden="true">
+        <rect x="14" y="24" width="34" height="14" rx="3" fill="#e5484d"/>
+        <path d="M52 31 C 66 31 66 31 74 22" stroke="#FFB800" stroke-width="2.5" fill="none"/>
+        <path d="M74 22 l-7 0 M74 22 l-1 7" stroke="#FFB800" stroke-width="2.5" fill="none"/>
+        <rect x="76" y="14" width="14" height="34" rx="3" fill="#e5484d" opacity="0.55"/>
+      </svg>
+      <b>师傅掉头</b>
+      <span>垂直于车身方向拖动，红车原地 90° 转向，纵向机动去接人</span>
     </div>
   </div>
     </section>
@@ -786,9 +813,9 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 2,
-  "narrowness": 3
+  "narrowness": null
  },
  {
   "id": 2,
@@ -848,9 +875,9 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 2,
-  "narrowness": 3
+  "narrowness": null
  },
  {
   "id": 3,
@@ -917,9 +944,9 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 2,
-  "narrowness": 3
+  "narrowness": null
  },
  {
   "id": 4,
@@ -979,9 +1006,9 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 2,
-  "narrowness": 3
+  "narrowness": null
  },
  {
   "id": 5,
@@ -1048,9 +1075,9 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 2,
-  "narrowness": 2
+  "narrowness": null
  },
  {
   "id": 6,
@@ -1110,9 +1137,9 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 3,
-  "narrowness": 6
+  "narrowness": null
  },
  {
   "id": 7,
@@ -1172,9 +1199,9 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 3,
-  "narrowness": 12
+  "narrowness": null
  },
  {
   "id": 8,
@@ -1241,9 +1268,9 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 2,
-  "narrowness": 2
+  "narrowness": null
  },
  {
   "id": 9,
@@ -1303,9 +1330,9 @@ const LEVELS = [
   ],
   "pickups": [],
   "walls": [],
-  "turn": false,
+  "turn": true,
   "par": 3,
-  "narrowness": 4
+  "narrowness": null
  },
  {
   "id": 10,
@@ -1329,86 +1356,86 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
+    "x": 2,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 2,
+    "x": 5,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
     "x": 3,
-    "y": 2,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 2,
+    "x": 4,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 6,
-    "y": 2,
+    "x": 3,
+    "y": 6,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 2,
+    "y": 4,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c6",
-    "x": 1,
-    "y": 1,
-    "len": 4,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 2,
-    "y": 6,
-    "len": 4,
-    "dir": "h"
-   },
-   {
     "id": "c8",
-    "x": 0,
-    "y": 4,
+    "x": 5,
+    "y": 0,
     "len": 3,
     "dir": "v"
    },
    {
     "id": "c9",
-    "x": 3,
-    "y": 5,
-    "len": 3,
+    "x": 1,
+    "y": 0,
+    "len": 4,
     "dir": "h"
    },
    {
     "id": "c10",
-    "x": 4,
-    "y": 0,
-    "len": 3,
-    "dir": "h"
-   },
-   {
-    "id": "c11",
-    "x": 1,
-    "y": 4,
-    "len": 3,
+    "x": 0,
+    "y": 5,
+    "len": 2,
     "dir": "v"
    },
    {
+    "id": "c11",
+    "x": 3,
+    "y": 1,
+    "len": 2,
+    "dir": "h"
+   },
+   {
     "id": "c12",
-    "x": 4,
-    "y": 4,
-    "len": 3,
+    "x": 5,
+    "y": 5,
+    "len": 2,
     "dir": "h"
    }
   ],
@@ -1416,19 +1443,15 @@ const LEVELS = [
   "walls": [
    {
     "x": 1,
-    "y": 0
+    "y": 4
    },
    {
-    "x": 0,
-    "y": 0
-   },
-   {
-    "x": 0,
+    "x": 6,
     "y": 2
    }
   ],
   "turn": false,
-  "par": 8,
+  "par": 13,
   "narrowness": null
  },
  {
@@ -2229,19 +2252,19 @@ const LEVELS = [
  {
   "id": 20,
   "chapter": 2,
-  "name": "学校门口 · 关门走人",
+  "name": "学校门口 · 大关",
   "quote": "娃在路边等着呢。",
-  "w": 6,
-  "h": 6,
+  "w": 7,
+  "h": 7,
   "exit": {
-   "x": 6,
-   "y": 2
+   "x": 7,
+   "y": 3
   },
   "cars": [
    {
     "id": "R",
-    "x": 0,
-    "y": 2,
+    "x": 1,
+    "y": 3,
     "len": 2,
     "dir": "h",
     "role": "hero"
@@ -2255,8 +2278,8 @@ const LEVELS = [
    },
    {
     "id": "c2",
-    "x": 4,
-    "y": 0,
+    "x": 2,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
@@ -2269,55 +2292,101 @@ const LEVELS = [
    },
    {
     "id": "c4",
-    "x": 5,
-    "y": 4,
+    "x": 6,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 3,
-    "y": 4,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c6",
-    "x": 3,
+    "x": 1,
     "y": 5,
-    "len": 2,
-    "dir": "h"
-   },
-   {
-    "id": "c7",
-    "x": 0,
-    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c6",
+    "x": 4,
+    "y": 5,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
+    "x": 3,
+    "y": 1,
+    "len": 4,
+    "dir": "h"
+   },
+   {
     "id": "c8",
-    "x": 1,
+    "x": 0,
+    "y": 0,
+    "len": 4,
+    "dir": "h"
+   },
+   {
+    "id": "c9",
+    "x": 4,
     "y": 0,
     "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c10",
+    "x": 6,
+    "y": 4,
+    "len": 3,
+    "dir": "v"
+   },
+   {
+    "id": "c11",
+    "x": 2,
+    "y": 6,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c12",
+    "x": 0,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c13",
+    "x": 1,
+    "y": 1,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c14",
+    "x": 5,
+    "y": 4,
+    "len": 3,
     "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 5,
-    "y": 0
+    "x": 4,
+    "y": 4
    }
   ],
   "walls": [
+   {
+    "x": 4,
+    "y": 2
+   },
    {
     "x": 0,
     "y": 5
    }
   ],
-  "turn": true,
-  "par": 9,
+  "turn": false,
+  "par": 7,
   "narrowness": null
  },
  {
@@ -3190,124 +3259,95 @@ const LEVELS = [
  {
   "id": 30,
   "chapter": 3,
-  "name": "写字楼 · 大关",
+  "name": "写字楼 · 顶流",
   "quote": "油门当刹车？不存在的。",
-  "w": 7,
-  "h": 7,
+  "w": 6,
+  "h": 6,
   "exit": {
-   "x": 7,
-   "y": 3
+   "x": 6,
+   "y": 2
   },
   "cars": [
    {
     "id": "R",
     "x": 0,
-    "y": 3,
+    "y": 2,
     "len": 2,
     "dir": "h",
     "role": "hero"
    },
    {
     "id": "c1",
-    "x": 6,
-    "y": 2,
+    "x": 5,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 4,
+    "x": 2,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 3,
+    "x": 3,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
     "x": 5,
-    "y": 3,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 3,
-    "y": 2,
+    "x": 0,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c6",
-    "x": 3,
-    "y": 5,
-    "len": 4,
+    "x": 4,
+    "y": 0,
+    "len": 2,
     "dir": "h"
    },
    {
     "id": "c7",
-    "x": 0,
-    "y": 0,
-    "len": 3,
+    "x": 3,
+    "y": 4,
+    "len": 2,
     "dir": "h"
    },
    {
     "id": "c8",
-    "x": 2,
-    "y": 6,
-    "len": 4,
-    "dir": "h"
-   },
-   {
-    "id": "c9",
-    "x": 3,
-    "y": 1,
-    "len": 3,
-    "dir": "h"
-   },
-   {
-    "id": "c10",
-    "x": 0,
-    "y": 4,
-    "len": 3,
+    "x": 1,
+    "y": 3,
+    "len": 2,
     "dir": "v"
-   },
-   {
-    "id": "c11",
-    "x": 4,
-    "y": 0,
-    "len": 3,
-    "dir": "h"
    }
   ],
   "pickups": [
    {
     "id": "p1",
     "x": 2,
-    "y": 2
+    "y": 5
    }
   ],
   "walls": [
    {
-    "x": 1,
+    "x": 4,
     "y": 1
-   },
-   {
-    "x": 6,
-    "y": 4
-   },
-   {
-    "x": 1,
-    "y": 4
    }
   ],
-  "turn": false,
-  "par": 16,
+  "turn": true,
+  "par": 11,
   "narrowness": null
  },
  {
@@ -4431,79 +4471,93 @@ const LEVELS = [
    },
    {
     "id": "c1",
-    "x": 5,
-    "y": 0,
+    "x": 6,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 6,
+    "x": 3,
     "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 2,
-    "y": 3,
+    "x": 5,
+    "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
     "x": 4,
-    "y": 3,
-    "len": 2,
-    "dir": "v"
-   },
-   {
-    "id": "c5",
-    "x": 3,
     "y": 2,
     "len": 2,
     "dir": "v"
    },
    {
+    "id": "c5",
+    "x": 0,
+    "y": 0,
+    "len": 3,
+    "dir": "h"
+   },
+   {
     "id": "c6",
+    "x": 5,
+    "y": 5,
+    "len": 2,
+    "dir": "v"
+   },
+   {
+    "id": "c7",
     "x": 1,
-    "y": 6,
+    "y": 1,
     "len": 4,
     "dir": "h"
    },
    {
-    "id": "c7",
-    "x": 2,
+    "id": "c8",
+    "x": 0,
     "y": 5,
     "len": 3,
     "dir": "h"
    },
    {
-    "id": "c8",
-    "x": 6,
-    "y": 0,
-    "len": 3,
-    "dir": "v"
-   },
-   {
     "id": "c9",
-    "x": 2,
-    "y": 1,
-    "len": 3,
+    "x": 5,
+    "y": 0,
+    "len": 2,
     "dir": "h"
    },
    {
     "id": "c10",
-    "x": 0,
-    "y": 0,
-    "len": 3,
-    "dir": "v"
+    "x": 4,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
    },
    {
     "id": "c11",
-    "x": 5,
-    "y": 4,
+    "x": 0,
+    "y": 2,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c12",
+    "x": 0,
+    "y": 6,
     "len": 3,
+    "dir": "h"
+   },
+   {
+    "id": "c13",
+    "x": 2,
+    "y": 3,
+    "len": 2,
     "dir": "v"
    }
   ],
@@ -4516,27 +4570,27 @@ const LEVELS = [
    },
    {
     "id": "p2",
-    "x": 3,
+    "x": 6,
     "y": 4,
     "order": 2
    }
   ],
   "walls": [
    {
-    "x": 1,
-    "y": 1
+    "x": 4,
+    "y": 6
    },
    {
     "x": 3,
-    "y": 0
+    "y": 2
    },
    {
-    "x": 4,
-    "y": 2
+    "x": 0,
+    "y": 1
    }
   ],
   "turn": false,
-  "par": 24,
+  "par": 27,
   "narrowness": null
  },
  {
@@ -5662,138 +5716,127 @@ const LEVELS = [
  {
   "id": 50,
   "chapter": 5,
-  "name": "机场高速 · 大关",
+  "name": "机场高速 · 起飞",
   "quote": "娃在路边等着呢。",
-  "w": 7,
-  "h": 7,
+  "w": 6,
+  "h": 6,
   "exit": {
-   "x": 7,
-   "y": 3
+   "x": 6,
+   "y": 2
   },
   "cars": [
    {
     "id": "R",
     "x": 0,
-    "y": 3,
+    "y": 2,
     "len": 2,
     "dir": "h",
     "role": "hero"
    },
    {
     "id": "c1",
-    "x": 3,
-    "y": 3,
+    "x": 4,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c2",
-    "x": 6,
-    "y": 3,
+    "x": 5,
+    "y": 4,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c3",
-    "x": 4,
-    "y": 3,
+    "x": 2,
+    "y": 1,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c4",
-    "x": 2,
-    "y": 1,
+    "x": 3,
+    "y": 3,
     "len": 2,
     "dir": "v"
    },
    {
     "id": "c5",
-    "x": 5,
+    "x": 0,
     "y": 3,
+    "len": 2,
+    "dir": "h"
+   },
+   {
+    "id": "c6",
+    "x": 0,
+    "y": 0,
     "len": 2,
     "dir": "v"
    },
    {
-    "id": "c6",
-    "x": 3,
-    "y": 6,
-    "len": 4,
+    "id": "c7",
+    "x": 0,
+    "y": 5,
+    "len": 3,
     "dir": "h"
    },
    {
-    "id": "c7",
-    "x": 1,
-    "y": 0,
-    "len": 3,
-    "dir": "v"
-   },
-   {
     "id": "c8",
-    "x": 2,
-    "y": 3,
-    "len": 3,
-    "dir": "v"
+    "x": 0,
+    "y": 4,
+    "len": 2,
+    "dir": "h"
    },
    {
     "id": "c9",
-    "x": 4,
-    "y": 1,
+    "x": 1,
+    "y": 0,
     "len": 3,
     "dir": "h"
    },
    {
     "id": "c10",
-    "x": 0,
-    "y": 0,
-    "len": 3,
+    "x": 4,
+    "y": 4,
+    "len": 2,
     "dir": "v"
    },
    {
     "id": "c11",
-    "x": 4,
-    "y": 0,
-    "len": 3,
-    "dir": "h"
-   },
-   {
-    "id": "c12",
-    "x": 1,
-    "y": 4,
-    "len": 3,
+    "x": 5,
+    "y": 2,
+    "len": 2,
     "dir": "v"
    }
   ],
   "pickups": [
    {
     "id": "p1",
-    "x": 6,
-    "y": 2,
+    "x": 4,
+    "y": 3,
     "order": 1
    },
    {
     "id": "p2",
-    "x": 4,
-    "y": 2,
+    "x": 2,
+    "y": 4,
     "order": 2
    }
   ],
   "walls": [
    {
+    "x": 2,
+    "y": 3
+   },
+   {
     "x": 3,
-    "y": 0
-   },
-   {
-    "x": 0,
-    "y": 4
-   },
-   {
-    "x": 5,
     "y": 5
    }
   ],
-  "turn": false,
-  "par": 11,
+  "turn": true,
+  "par": 16,
   "narrowness": null
  }
 ];
@@ -7228,6 +7271,7 @@ const ui = {
   hud: document.getElementById('hud'),
   levelList: document.getElementById('level-list'),
   levelName: document.getElementById('level-name'),
+  bossChip: document.getElementById('boss-chip'),
   quote: document.getElementById('quote'),
   moves: document.getElementById('moves'),
   par: document.getElementById('par'),
@@ -7300,6 +7344,7 @@ function startLevel(def) {
   ui.win.style.display = 'none';
   ui.hud.style.display = 'grid';
   ui.levelName.textContent = `第 ${def.id} 关 · ${def.name}`;
+  ui.bossChip.style.display = def.name.includes('大关') ? 'inline-block' : 'none';
   ui.quote.textContent = `“${def.quote || ''}”`;
   ui.par.textContent = String(def.par);
   ui.pickupHint.style.display = def.pickups.length ? 'block' : 'none';
@@ -7490,7 +7535,7 @@ function showTitle() {
   for (const def of LEVELS) {
     const st = stars[def.id] || 0;
     const btn = document.createElement('button');
-    btn.className = 'level-btn';
+    btn.className = 'level-btn' + (def.name.includes('大关') ? ' boss' : '');
     btn.innerHTML =
       `<span class="no"><b>${String(def.id).padStart(2, '0')}</b></span>` +
       `<span class="node"></span>` +

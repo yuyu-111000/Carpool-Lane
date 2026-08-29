@@ -50,10 +50,10 @@ for (const cfg of CHAPTERS) {
     process.exit(1);
   }
   const ordered = waveOrder(cands);
-  // 大关：每章第 10 关（峰值）= 7x7 放大地图 + 加长车 + 高密度，取 par 最高者保证是章内最难
-  const bossCfg = { ...cfg, size: 7, turn: false, len3: 0.4, len4: 0.6, cars: [cfg.cars[0] + 6, cfg.cars[1] + 6], walls: [3, 3], block: 5, steps: 6 };
+  // 大关：每章第 10 关（峰值）= 7x7 放大地图 + 加长车(len4)，取 par 较高者
+  const bossCfg = { ...cfg, size: 7, turn: false, len3: 0.3, len4: 0.5, cars: [cfg.cars[0] + 5, cfg.cars[1] + 5], walls: [2, 3], block: 4, steps: 5 };
   let boss = null;
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 10; i++) {
     const c = makeCandidate(bossCfg, rng, stats);
     if (c && (!boss || c.par > boss.par)) boss = c;
   }

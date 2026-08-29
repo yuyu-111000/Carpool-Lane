@@ -17,6 +17,7 @@ const ui = {
   hud: document.getElementById('hud'),
   levelList: document.getElementById('level-list'),
   levelName: document.getElementById('level-name'),
+  bossChip: document.getElementById('boss-chip'),
   quote: document.getElementById('quote'),
   moves: document.getElementById('moves'),
   par: document.getElementById('par'),
@@ -89,6 +90,7 @@ function startLevel(def) {
   ui.win.style.display = 'none';
   ui.hud.style.display = 'grid';
   ui.levelName.textContent = `第 ${def.id} 关 · ${def.name}`;
+  ui.bossChip.style.display = def.name.includes('大关') ? 'inline-block' : 'none';
   ui.quote.textContent = `“${def.quote || ''}”`;
   ui.par.textContent = String(def.par);
   ui.pickupHint.style.display = def.pickups.length ? 'block' : 'none';
@@ -279,7 +281,7 @@ function showTitle() {
   for (const def of LEVELS) {
     const st = stars[def.id] || 0;
     const btn = document.createElement('button');
-    btn.className = 'level-btn';
+    btn.className = 'level-btn' + (def.name.includes('大关') ? ' boss' : '');
     btn.innerHTML =
       `<span class="no"><b>${String(def.id).padStart(2, '0')}</b></span>` +
       `<span class="node"></span>` +
