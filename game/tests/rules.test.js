@@ -109,6 +109,29 @@ test('班车：玩家每步后班车位移，被挡（越界）则停，班车�
   assert.throws(() => applyMove(lvl, s5, 'B', 3), /bus/);
 });
 
+test('乘客是障碍物：未接时车不能滑过，接走后格子开放', () => {
+  const def = {
+    w: 6, h: 6, exit: { x: 6, y: 2 },
+    cars: [
+      { id: 'R', x: 0, y: 2, len: 2, dir: 'h', role: 'hero' },
+      { id: 'b', x: 4, y: 1, len: 2, dir: 'h' },
+    ],
+    pickups: [{ id: 'p1', x: 2, y: 1 }],
+    walls: [],
+  };
+  const lvl = createLevel(def);
+  const s0 = initialState(lvl);
+  // 未接：b 左滑最多到 x=3（x=2 被乘客挡）
+  assert.ok(slideTargets(lvl, s0, 'b').includes(3));
+  assert.ok(!slideTargets(lvl, s0, 'b').includes(2), '乘客格未接时不可滑入');
+  // 英雄车右移接人（R 占 (1,2),(2,2)，与 (2,1) 相邻）
+  const s1 = applyMove(lvl, s0, 'R', 1);
+  assert.deepEqual(s1.picked, ['p1']);
+  // 接走后：b 可以左滑穿过原乘客格
+  assert.ok(slideTargets(lvl, s1, 'b').includes(2), '接走后格子开放');
+  assert.ok(slideTargets(lvl, s1, 'b').includes(0));
+});
+
 test('isWin：道闸未开时到出口不算赢', () => {
   const def = {
     w: 6, h: 6, exit: { x: 6, y: 2 },

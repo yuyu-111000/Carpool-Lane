@@ -15,6 +15,9 @@ def grid_of(level, state, exclude_id=None):
     g = {}
     for w in level.get("walls", []):
         g[(w["x"], w["y"])] = "#"
+    for pk in level.get("pickups", []):
+        if pk["id"] not in state["picked"]:
+            g[(pk["x"], pk["y"])] = "P"
     for c in level["cars"]:
         if c["id"] == exclude_id:
             continue

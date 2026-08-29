@@ -6,11 +6,11 @@ import { slideTargets, applyMove } from '../src/rules/move.js';
 import { solve, checkNecessity, narrowness } from './solver.js';
 
 export const CHAPTERS = [
-  { ch: 1, scene: '小区窄巷', size: 6, cars: [3, 4], block: 1, len3: 0.15, pickups: 0, ordered: false, bus: 0, walls: [0, 0], steps: 3 },
-  { ch: 2, scene: '学校门口', size: 6, cars: [4, 5], block: 2, len3: 0.2, pickups: 1, ordered: false, bus: 0, walls: [0, 1], steps: 4 },
-  { ch: 3, scene: '写字楼', size: 6, cars: [5, 6], block: 2, len3: 0.25, pickups: 1, ordered: false, bus: 0, walls: [1, 1], steps: 5 },
-  { ch: 4, scene: '商场卸货区', size: 6, cars: [5, 6], block: 3, len3: 0.3, pickups: 2, ordered: true, bus: 0, walls: [1, 2], steps: 5 },
-  { ch: 5, scene: '机场高速', size: 6, cars: [6, 7], block: 3, len3: 0.3, pickups: 2, ordered: true, bus: 0, walls: [2, 2], steps: 6 },
+  { ch: 1, scene: '小区窄巷', size: 6, cars: [3, 4], block: 2, len3: 0.15, pickups: 0, ordered: false, bus: 0, walls: [0, 0], steps: 3 },
+  { ch: 2, scene: '学校门口', size: 6, cars: [4, 5], block: 3, len3: 0.2, pickups: 1, ordered: false, bus: 0, walls: [0, 1], steps: 4 },
+  { ch: 3, scene: '写字楼', size: 6, cars: [5, 6], block: 3, len3: 0.25, pickups: 1, ordered: false, bus: 0, walls: [1, 1], steps: 5 },
+  { ch: 4, scene: '商场卸货区', size: 6, cars: [5, 6], block: 4, len3: 0.3, pickups: 2, ordered: true, bus: 0, walls: [1, 2], steps: 5 },
+  { ch: 5, scene: '机场高速', size: 6, cars: [6, 7], block: 4, len3: 0.3, pickups: 2, ordered: true, bus: 0, walls: [2, 2], steps: 6 },
 ];
 
 export function mulberry32(seed) {

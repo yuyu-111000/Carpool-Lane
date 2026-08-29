@@ -6,6 +6,11 @@ import { carCells } from './board.js';
 function gridWithout(level, s, excludeId) {
   const grid = new Map();
   for (const w of level.walls) grid.set(w.x + ',' + w.y, '#');
+  // 未接乘客是障碍物：任何车不能滑过；接走后格子开放（接人=清障）
+  for (const p of level.pickups) {
+    if (s.picked.includes(p.id)) continue;
+    grid.set(p.x + ',' + p.y, 'P');
+  }
   for (const c of level.cars) {
     if (c.id === excludeId) continue;
     const p = s.cars[c.id];
