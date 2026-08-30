@@ -3,3 +3,6 @@ ai-api-h5.json
 node_modules/
 game/shots/
 *.log
+
+release/
+*.zip
