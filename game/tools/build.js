@@ -110,9 +110,13 @@ const TEMPLATE = html => `<!DOCTYPE html>
   html, body { height: 100%; }
   body {
     font-family: var(--sans);
-    background: var(--bg); color: var(--text);
+    color: var(--text);
     display: flex; flex-direction: column; align-items: center;
     height: 100dvh; overflow: hidden;
+    background:
+      radial-gradient(1200px 500px at 50% -10%, rgba(255,184,0,0.08), transparent 60%),
+      radial-gradient(900px 400px at 85% 110%, rgba(229,72,77,0.07), transparent 60%),
+      var(--bg);
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   .lane {
@@ -123,13 +127,21 @@ const TEMPLATE = html => `<!DOCTYPE html>
   .btn {
     font-family: var(--sans); font-size: 15px; font-weight: 800; letter-spacing: 1px;
     background: transparent; color: var(--amber);
-    border: 1px solid var(--amber); border-radius: 2px;
+    border: 1px solid var(--amber); border-radius: 10px;
     padding: 10px 18px; cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
   }
-  .btn:active { background: rgba(255,184,0,.15); }
-  .btn.primary { background: var(--amber); color: #0B0C0A; }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(255,184,0,.18); }
+  .btn:active { transform: translateY(0); background: rgba(255,184,0,.15); }
+  .btn.primary {
+    background: linear-gradient(180deg, #ffcf3d, #ffb800);
+    color: #0B0C0A; border-color: #ffb800;
+    box-shadow: 0 4px 16px rgba(255,184,0,.28);
+  }
+  .btn.primary:hover { box-shadow: 0 6px 20px rgba(255,184,0,.4); }
   .btn.primary:active { background: #e6a600; }
   .btn.sec { color: var(--dim); border-color: var(--line); }
+  .btn.sec:hover { color: var(--text); box-shadow: 0 4px 12px rgba(0,0,0,.4); }
 
   /* ---------- HUD（两行网格：关卡名+按钮 / 语录+统计） ---------- */
   #hud {
@@ -176,13 +188,17 @@ const TEMPLATE = html => `<!DOCTYPE html>
 
   /* 标题屏：路牌式刊头 */
   .sign {
-    border: 2px solid var(--amber); border-radius: 4px;
-    padding: 18px 34px 16px; background: var(--panel);
-    box-shadow: 0 0 0 6px var(--bg), 0 0 0 7px var(--line);
+    border: 2px solid var(--amber); border-radius: 18px;
+    padding: 20px 36px 18px;
+    background: linear-gradient(180deg, #1b1e26, #14161c);
+    box-shadow: 0 0 0 6px var(--bg), 0 0 0 7px var(--line), 0 16px 48px rgba(0,0,0,.55), 0 0 70px rgba(255,184,0,.07);
   }
-  .sign-top { font-family: var(--mono); color: var(--dim); font-size: 12px; letter-spacing: 4px; }
-  .sign h1 { font-size: 40px; font-weight: 900; letter-spacing: 6px; margin: 6px 0 10px; }
-  .sign .lane { width: 100%; }
+  .sign-top { font-family: var(--mono); color: var(--dim); font-size: 12px; letter-spacing: 5px; }
+  .sign h1 { font-size: 42px; font-weight: 900; letter-spacing: 6px; margin: 6px 0 12px; text-shadow: 0 0 24px rgba(255,184,0,.25); }
+  .sign .lane { width: 100%; height: 16px; position: relative; background: repeating-linear-gradient(90deg, var(--amber) 0 22px, transparent 22px 40px) center / 100% 3px no-repeat; animation: dash 1s linear infinite; }
+  .sign .lane::after { content: '🚕'; position: absolute; top: -8px; left: 0; font-size: 18px; animation: drive 3.2s linear infinite; }
+  @keyframes dash { to { background-position: 40px center; } }
+  @keyframes drive { 0% { left: -8%; } 100% { left: 100%; } }
   .sign .tag { color: var(--dim); font-size: 13px; margin-top: 10px; letter-spacing: 2px; }
 
   .howto { width: 100%; max-width: 560px; }
@@ -193,10 +209,13 @@ const TEMPLATE = html => `<!DOCTYPE html>
   .howto-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
   @media (max-width: 520px) { .howto-grid { grid-template-columns: 1fr; } }
   .howto-item {
-    border: 1px solid var(--line); background: var(--panel);
-    padding: 10px 10px 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; text-align: left;
+    border: 1px solid var(--line); border-radius: 12px;
+    background: linear-gradient(180deg, #191c23, #14161c);
+    padding: 12px 12px 14px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; text-align: left;
+    transition: transform .15s ease, border-color .15s ease;
   }
-  .howto-item svg { width: 100%; height: 64px; background: var(--board); }
+  .howto-item:hover { transform: translateY(-2px); border-color: rgba(255,184,0,.5); }
+  .howto-item svg { width: 100%; height: 64px; background: var(--board); border-radius: 8px; }
   .howto-item b { font-size: 14px; letter-spacing: 1px; }
   .howto-item span { font-size: 12px; color: var(--dim); line-height: 1.5; }
 
@@ -226,7 +245,8 @@ const TEMPLATE = html => `<!DOCTYPE html>
 
   /* 胜利屏 */
   #win-screen h2 { font-size: 26px; font-weight: 900; letter-spacing: 3px; }
-  #win-stars { font-size: 46px; letter-spacing: 6px; }
+  #win-stars { font-size: 46px; letter-spacing: 6px; animation: pop .5s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes pop { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   #win-text { font-size: 15px; color: var(--dim); }
   #win-stats { font-family: var(--mono); font-size: 14px; color: var(--text); }
   #win-stats b { color: var(--amber); }

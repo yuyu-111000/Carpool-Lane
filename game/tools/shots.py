@@ -3,7 +3,7 @@ from playwright.sync_api import sync_playwright
 with sync_playwright() as p:
     b = p.chromium.launch(headless=True)
     pg = b.new_page(viewport={"width": 480, "height": 860})
-    pg.goto("file:///E:/Program/Game%20260831/dist/index.html")
+    pg.goto("file:///E:/Program/Carpool%20Lane/dist/index.html")
     pg.wait_for_timeout(800)
     pg.screenshot(path="shots/v2-title.png", full_page=True)
 

@@ -49,59 +49,96 @@ export class Renderer {
     ctx.clearRect(0, 0, this.cssW, this.cssH);
     this.layout(level);
 
-    // 底盘（沥青）
-    ctx.fillStyle = '#2b303b';
-    ctx.fillRect(this.ox, this.oy, this.cell * level.w, this.cell * level.h);
+    // 底盘：沥青纵向渐变 + 圆角
+    const bw = this.cell * level.w, bh = this.cell * level.h;
+    const bg = ctx.createLinearGradient(0, this.oy, 0, this.oy + bh);
+    bg.addColorStop(0, '#272c37');
+    bg.addColorStop(1, '#1a1e26');
+    ctx.fillStyle = bg;
+    roundRect(ctx, this.ox, this.oy, bw, bh, 10);
+    ctx.fill();
 
-    // 网格
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    // 车位网格（淡）
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
     ctx.lineWidth = 1;
-    for (let i = 0; i <= level.w; i++) {
+    for (let i = 1; i < level.w; i++) {
       ctx.beginPath();
-      ctx.moveTo(this.ox + i * this.cell + 0.5, this.oy);
-      ctx.lineTo(this.ox + i * this.cell + 0.5, this.oy + this.cell * level.h);
+      ctx.moveTo(this.ox + i * this.cell + 0.5, this.oy + 4);
+      ctx.lineTo(this.ox + i * this.cell + 0.5, this.oy + bh - 4);
       ctx.stroke();
     }
-    for (let j = 0; j <= level.h; j++) {
+    for (let j = 1; j < level.h; j++) {
       ctx.beginPath();
-      ctx.moveTo(this.ox, this.oy + j * this.cell + 0.5);
-      ctx.lineTo(this.ox + this.cell * level.w, this.oy + j * this.cell + 0.5);
+      ctx.moveTo(this.ox + 4, this.oy + j * this.cell + 0.5);
+      ctx.lineTo(this.ox + bw - 4, this.oy + j * this.cell + 0.5);
       ctx.stroke();
     }
 
-    // 墙
+    // 墙：混凝土块 + 琥珀警示斜纹
     for (const w of level.walls) {
       const { px, py, s } = this.cellRect(level, w.x, w.y);
-      ctx.fillStyle = '#565f6e';
-      roundRect(ctx, px + 2, py + 2, s - 4, s - 4, 4);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(0,0,0,0.25)';
-      ctx.fillRect(px + 2, py + 2, s - 4, (s - 4) * 0.3);
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      roundRect(ctx, px + 3, py + 4, s - 6, s - 6, 5); ctx.fill();
+      const wg = ctx.createLinearGradient(px, py, px, py + s);
+      wg.addColorStop(0, '#4a5262'); wg.addColorStop(1, '#343b48');
+      ctx.fillStyle = wg;
+      roundRect(ctx, px + 2, py + 2, s - 4, s - 4, 5); ctx.fill();
+      ctx.save();
+      roundRect(ctx, px + 2, py + 2, s - 4, s - 4, 5); ctx.clip();
+      ctx.strokeStyle = 'rgba(255,184,0,0.35)';
+      ctx.lineWidth = 4;
+      for (let d = -s; d < s * 2; d += 12) {
+        ctx.beginPath();
+        ctx.moveTo(px + d, py + s);
+        ctx.lineTo(px + d + s, py);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
 
     // 出口：外侧延续路面 + 车道虚线 + 道闸
     const g = gatePos(level, this);
     this.drawExit(level, g, view.gateOpen);
 
-    // 乘客
+    // 乘客：矢量小人 + 待接光环 + 序号
     for (const p of level.pickups) {
       if (state.picked.includes(p.id)) continue;
       const { px, py, s } = this.cellRect(level, p.x, p.y);
-      const bob = Math.sin(this.time / 300) * 3;
-      ctx.font = `${Math.floor(s * 0.62)}px "Segoe UI Emoji","Apple Color Emoji",sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('🧍', px + s / 2, py + s / 2 + bob);
+      const cx = px + s / 2, cy = py + s / 2;
+      const bob = Math.sin(this.time / 300) * 2;
       // 待接光环
-      ctx.strokeStyle = `rgba(255,214,64,${0.5 + 0.3 * Math.sin(this.time / 200)})`;
+      ctx.strokeStyle = `rgba(255,214,64,${0.45 + 0.3 * Math.sin(this.time / 200)})`;
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(px + s / 2, py + s / 2, s * 0.42, 0, Math.PI * 2);
+      ctx.arc(cx, cy, s * 0.4, 0, Math.PI * 2);
       ctx.stroke();
+      // 影子
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + s * 0.28, s * 0.16, s * 0.05, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // 身体
+      ctx.fillStyle = '#ffb800';
+      roundRect(ctx, cx - s * 0.11, cy - s * 0.02 + bob, s * 0.22, s * 0.3, s * 0.08);
+      ctx.fill();
+      // 头
+      ctx.fillStyle = '#ffd9a0';
+      ctx.beginPath();
+      ctx.arc(cx, cy - s * 0.12 + bob, s * 0.1, 0, Math.PI * 2);
+      ctx.fill();
       if (p.order != null) {
+        ctx.fillStyle = '#0b0c0a';
+        ctx.beginPath();
+        ctx.arc(px + s * 0.82, py + s * 0.18, s * 0.14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffd640'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(px + s * 0.82, py + s * 0.18, s * 0.14, 0, Math.PI * 2);
+        ctx.stroke();
         ctx.fillStyle = '#ffd640';
-        ctx.font = `bold ${Math.floor(s * 0.3)}px sans-serif`;
-        ctx.fillText(String(p.order), px + s * 0.82, py + s * 0.18);
+        ctx.font = `bold ${Math.floor(s * 0.2)}px sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(p.order), px + s * 0.82, py + s * 0.19);
       }
     }
 
@@ -135,70 +172,97 @@ export class Renderer {
     const bus = !!car.bus;
 
     // 阴影
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    roundRect(ctx, px + 2, py + 3, wpx, hpx, 8);
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    roundRect(ctx, px + 2, py + 4, wpx, hpx, 9);
     ctx.fill();
 
-    // 车身
-    ctx.fillStyle = hero ? '#e74c3c' : bus ? '#f1c40f' : CAR_COLORS[(car.id.charCodeAt(0) + car.len) % CAR_COLORS.length];
-    roundRect(ctx, px, py, wpx, hpx, 8);
-    ctx.fill();
-    if (selected) {
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 3;
-      roundRect(ctx, px, py, wpx, hpx, 8);
-      ctx.stroke();
-    } else if (view.hintCar === car.id) {
-      ctx.strokeStyle = `rgba(255,184,0,${0.5 + 0.4 * Math.sin(this.time / 120)})`;
-      ctx.lineWidth = 4;
-      roundRect(ctx, px - 2, py - 2, wpx + 4, hpx + 4, 9);
-      ctx.stroke();
+    const base = hero ? '#ff5a3c' : bus ? '#ffc21a' : CAR_COLORS[(car.id.charCodeAt(0) + car.len) % CAR_COLORS.length];
+
+    // 轮子
+    ctx.fillStyle = '#101216';
+    const wl = Math.max(6, this.cell * 0.2);
+    if (isH) {
+      for (const wx of [px + wpx * 0.14, px + wpx * 0.86 - wl]) {
+        roundRect(ctx, wx, py - 2, wl, 5, 2); ctx.fill();
+        roundRect(ctx, wx, py + hpx - 3, wl, 5, 2); ctx.fill();
+      }
     } else {
-      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-      ctx.lineWidth = 2;
-      roundRect(ctx, px, py, wpx, hpx, 8);
-      ctx.stroke();
-    }
-
-    // 车窗（英雄车用 emoji 整车表现，不画窗块）
-    if (!hero) {
-      ctx.fillStyle = 'rgba(255,255,255,0.75)';
-      if (isH) {
-        roundRect(ctx, px + wpx * 0.55, py + hpx * 0.18, wpx * 0.22, hpx * 0.28, 3); ctx.fill();
-        roundRect(ctx, px + wpx * 0.18, py + hpx * 0.18, wpx * 0.2, hpx * 0.28, 3); ctx.fill();
-      } else {
-        roundRect(ctx, px + wpx * 0.18, py + hpx * 0.08, wpx * 0.64, hpx * 0.12, 3); ctx.fill();
-        roundRect(ctx, px + wpx * 0.18, py + hpx * 0.5, wpx * 0.64, hpx * 0.12, 3); ctx.fill();
+      for (const wy of [py + hpx * 0.14, py + hpx * 0.86 - wl]) {
+        roundRect(ctx, px - 2, wy, 5, wl, 2); ctx.fill();
+        roundRect(ctx, px + wpx - 3, wy, 5, wl, 2); ctx.fill();
       }
     }
 
-    // 英雄车：师傅标识 + 已接乘客数
+    // 车身渐变（短轴受光）
+    const cg = isH ? ctx.createLinearGradient(0, py, 0, py + hpx) : ctx.createLinearGradient(px, 0, px + wpx, 0);
+    cg.addColorStop(0, shade(base, 26));
+    cg.addColorStop(0.5, base);
+    cg.addColorStop(1, shade(base, -26));
+    ctx.fillStyle = cg;
+    roundRect(ctx, px, py, wpx, hpx, 9);
+    ctx.fill();
+
+    // 座舱 + 车窗
+    ctx.fillStyle = 'rgba(16,20,28,0.5)';
+    if (isH) roundRect(ctx, px + wpx * 0.2, py + hpx * 0.14, wpx * 0.56, hpx * 0.44, 5);
+    else roundRect(ctx, px + wpx * 0.14, py + hpx * 0.2, wpx * 0.44, hpx * 0.56, 5);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(210,235,255,0.85)';
+    if (isH) {
+      roundRect(ctx, px + wpx * 0.6, py + hpx * 0.2, wpx * 0.12, hpx * 0.32, 2); ctx.fill();
+      roundRect(ctx, px + wpx * 0.26, py + hpx * 0.2, wpx * 0.1, hpx * 0.32, 2); ctx.fill();
+    } else {
+      roundRect(ctx, px + wpx * 0.2, py + hpx * 0.6, wpx * 0.32, hpx * 0.12, 2); ctx.fill();
+      roundRect(ctx, px + wpx * 0.2, py + hpx * 0.26, wpx * 0.32, hpx * 0.1, 2); ctx.fill();
+    }
+
+    // 英雄车：出租车格纹 + 顶灯 + 车头灯
     if (hero) {
-      ctx.font = `${Math.floor(this.cell * 0.62)}px "Segoe UI Emoji","Apple Color Emoji",sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('🚕', px + wpx / 2, py + hpx / 2);
-      if (level.pickups.length) {
-        const n = state.picked.length;
-        if (n > 0) {
-          ctx.fillStyle = '#2ecc71';
-          ctx.beginPath();
-          ctx.arc(px + wpx - 4, py + 6, 9, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#fff';
-          ctx.font = 'bold 11px sans-serif';
-          ctx.fillText(String(n), px + wpx - 4, py + 7);
-        }
+      ctx.save();
+      roundRect(ctx, px, py, wpx, hpx, 9); ctx.clip();
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      const cs = Math.max(3, this.cell * 0.09);
+      if (isH) {
+        for (let i = 0, x = px; x < px + wpx; x += cs, i++) { ctx.fillStyle = i % 2 ? '#111' : '#fff'; ctx.fillRect(x, py + hpx - cs * 1.4, cs, cs); }
+      } else {
+        for (let i = 0, y = py; y < py + hpx; y += cs, i++) { ctx.fillStyle = i % 2 ? '#111' : '#fff'; ctx.fillRect(px + wpx - cs * 1.4, y, cs, cs); }
+      }
+      ctx.restore();
+      // 顶灯
+      ctx.fillStyle = '#ffd640';
+      if (isH) roundRect(ctx, px + wpx / 2 - 6, py + hpx * 0.3, 12, 6, 2);
+      else roundRect(ctx, px + wpx * 0.3, py + hpx / 2 - 6, 6, 12, 2);
+      ctx.fill();
+      // 车头灯
+      ctx.fillStyle = 'rgba(255,240,180,0.95)';
+      if (isH) { roundRect(ctx, px + wpx - 4, py + 3, 3, 5, 1); ctx.fill(); roundRect(ctx, px + wpx - 4, py + hpx - 8, 3, 5, 1); ctx.fill(); }
+      else { roundRect(ctx, px + 3, py + hpx - 4, 5, 3, 1); ctx.fill(); roundRect(ctx, px + wpx - 8, py + hpx - 4, 5, 3, 1); ctx.fill(); }
+      // 已接乘客数
+      if (level.pickups.length && state.picked.length) {
+        ctx.fillStyle = '#2ecc71';
+        ctx.beginPath(); ctx.arc(px + wpx - 5, py + 6, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(state.picked.length), px + wpx - 5, py + 7);
       }
     }
 
     // 班车箭头
     if (bus) {
-      ctx.fillStyle = '#7f6000';
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
       ctx.font = 'bold 16px sans-serif';
-      ctx.textAlign = 'center';
-      const cx = px + wpx / 2, cy = py + hpx / 2;
-      ctx.fillText(arrowOf(car.bus), cx, cy + 6);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(arrowOf(car.bus), px + wpx / 2, py + hpx / 2);
+    }
+
+    // 选中 / 提示描边
+    if (selected) {
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+      roundRect(ctx, px, py, wpx, hpx, 9); ctx.stroke();
+    } else if (view.hintCar === car.id) {
+      ctx.strokeStyle = `rgba(255,184,0,${0.5 + 0.4 * Math.sin(this.time / 120)})`;
+      ctx.lineWidth = 4;
+      roundRect(ctx, px - 2, py - 2, wpx + 4, hpx + 4, 10); ctx.stroke();
     }
   }
 
@@ -207,17 +271,30 @@ export class Renderer {
     const ctx = this.ctx;
     const roadW = this.cssW - g.px;
     // 外侧延续路面
-    ctx.fillStyle = '#1d2026';
+    const rg = ctx.createLinearGradient(g.px, 0, this.cssW, 0);
+    rg.addColorStop(0, '#22262e');
+    rg.addColorStop(1, '#171a20');
+    ctx.fillStyle = rg;
     ctx.fillRect(g.px, g.py + 3, roadW, g.s - 6);
-    // 车道虚线指向外
-    ctx.strokeStyle = 'rgba(255,184,0,0.75)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 5]);
-    ctx.beginPath();
-    ctx.moveTo(g.px + 2, g.py + g.s / 2);
-    ctx.lineTo(this.cssW - 3, g.py + g.s / 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    // 导向箭头（流动感）
+    ctx.strokeStyle = open ? 'rgba(0,200,83,0.8)' : 'rgba(255,184,0,0.5)';
+    ctx.lineWidth = 2.5;
+    const ph = (this.time / 40) % 14;
+    for (let ax = g.px + 4 + ph; ax < this.cssW - 8; ax += 14) {
+      ctx.beginPath();
+      ctx.moveTo(ax, g.py + g.s / 2 - 5);
+      ctx.lineTo(ax + 5, g.py + g.s / 2);
+      ctx.lineTo(ax, g.py + g.s / 2 + 5);
+      ctx.stroke();
+    }
+    // 开口辉光
+    if (open) {
+      const gl = ctx.createRadialGradient(g.px, g.py + g.s / 2, 2, g.px, g.py + g.s / 2, g.s);
+      gl.addColorStop(0, 'rgba(0,200,83,0.35)');
+      gl.addColorStop(1, 'rgba(0,200,83,0)');
+      ctx.fillStyle = gl;
+      ctx.fillRect(g.px - g.s, g.py - g.s / 2, g.s * 2, g.s * 2);
+    }
     // 出口标签（画布右缘对齐，避免与栏杆重叠）
     ctx.fillStyle = 'rgba(255,184,0,0.9)';
     ctx.font = 'bold 10px sans-serif';
@@ -298,6 +375,13 @@ function arrowOf(bus) {
   if (bus.dy === 1) return '↓';
   if (bus.dx === -1) return '←';
   return '→';
+}
+
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = (n >> 16) + amt, g = ((n >> 8) & 0xff) + amt, b = (n & 0xff) + amt;
+  r = Math.max(0, Math.min(255, r)); g = Math.max(0, Math.min(255, g)); b = Math.max(0, Math.min(255, b));
+  return `rgb(${r},${g},${b})`;
 }
 
 function roundRect(ctx, x, y, w, h, r) {

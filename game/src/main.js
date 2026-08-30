@@ -117,7 +117,7 @@ function tryMove(carId, target) {
   const ns = applyMove(g.level, g.state, carId, target);
   g.state = ns;
   g.moves++;
-  sfx.move();
+  if (typeof target === 'string') sfx.turn(); else sfx.move();
   g.anims[carId] = { from: { x: before.cars[carId].x, y: before.cars[carId].y }, t0: performance.now(), dur: 130 };
   for (const c of g.level.cars) {
     if (c.bus && (before.cars[c.id].x !== ns.cars[c.id].x || before.cars[c.id].y !== ns.cars[c.id].y)) {
